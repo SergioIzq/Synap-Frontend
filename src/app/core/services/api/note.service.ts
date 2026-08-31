@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { environment } from '../../../../environments/environment';
-import { ApiResult, CreateNoteRequest, Note, QuickCaptureRequest, UpdateNoteRequest } from '../../models';
+import { ApiResult, CreateNoteRequest, Note, QuickCaptureRequest, RelatedNote, UpdateNoteRequest } from '../../models';
 
 @Injectable({ providedIn: 'root' })
 export class NoteService {
@@ -35,5 +35,9 @@ export class NoteService {
 
   addTag(id: string, tagName: string): Observable<void> {
     return this.http.post<ApiResult>(`${this.apiUrl}/${id}/tags`, { tagName }).pipe(map(() => undefined));
+  }
+
+  getRelated(id: string): Observable<RelatedNote[]> {
+    return this.http.get<ApiResult<RelatedNote[]>>(`${this.apiUrl}/${id}/related`).pipe(map((res) => res.value));
   }
 }

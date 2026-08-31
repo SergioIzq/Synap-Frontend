@@ -2,6 +2,8 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MarkdownService } from '../../../core/services/markdown.service';
+import { NoteService } from '../../../core/services/api/note.service';
+import { RelatedNote } from '../../../core/models';
 import { NotesStore } from '../store/notes.store';
 
 @Component({
@@ -67,6 +69,17 @@ import { NotesStore } from '../store/notes.store';
               <button type="submit">Add</button>
             </form>
           </section>
+
+          @if (relatedNotes().length > 0) {
+            <section class="related-notes">
+              <h3>Related notes</h3>
+              @for (related of relatedNotes(); track related.id) {
+                <a class="related-note" [routerLink]="['/notes', related.id]">
+                  {{ related.title ?? preview(related.content) }}
+                </a>
+              }
+            </section>
+          }
         }
 
         @if (notesStore.error()) {
@@ -80,6 +93,7 @@ import { NotesStore } from '../store/notes.store';
 })
 export class NoteDetailPage implements OnInit {
   protected readonly notesStore = inject(NotesStore);
+  private readonly noteService = inject(NoteService);
   private readonly markdownService = inject(MarkdownService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -87,6 +101,7 @@ export class NoteDetailPage implements OnInit {
 
   private readonly noteId = signal(this.route.snapshot.paramMap.get('id')!);
   protected readonly note = computed(() => this.notesStore.noteById(this.noteId()));
+  protected readonly relatedNotes = signal<RelatedNote[]>([]);
 
   protected readonly editing = signal(false);
   protected readonly copied = signal(false);
@@ -106,6 +121,13 @@ export class NoteDetailPage implements OnInit {
     if (note) {
       this.editForm.setValue({ title: note.title ?? '', content: note.content });
     }
+
+    // specs/ai-assistant "Semantic relations between notes" - best-effort: an empty panel is a
+    // fine fallback if the AI service is briefly unavailable, not worth surfacing as an error.
+    this.noteService.getRelated(this.noteId()).subscribe({
+      next: (related) => this.relatedNotes.set(related),
+      error: () => this.relatedNotes.set([]),
+    });
   }
 
   async save(): Promise<void> {
@@ -150,5 +172,9 @@ export class NoteDetailPage implements OnInit {
     await navigator.clipboard.writeText(content);
     this.copied.set(true);
     setTimeout(() => this.copied.set(false), 2000);
+  }
+
+  preview(content: string): string {
+    return content.length > 80 ? content.slice(0, 80) + '…' : content;
   }
 }

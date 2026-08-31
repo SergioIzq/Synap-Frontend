@@ -1,15 +1,19 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { NotesStore } from '../store/notes.store';
 import { NoteCardComponent } from '../components/note-card.component';
 
 @Component({
   selector: 'app-notes-list-page',
   standalone: true,
-  imports: [ReactiveFormsModule, NoteCardComponent],
+  imports: [ReactiveFormsModule, RouterLink, NoteCardComponent],
   template: `
     <main class="notes-page">
-      <h1>Synap</h1>
+      <div class="page-header">
+        <h1>Synap</h1>
+        <a routerLink="/assistant">Ask the assistant &rarr;</a>
+      </div>
 
       <!-- Primary capture surface (specs/knowledge-vault) - always visible, no menu to dig through. -->
       <form class="quick-capture" [formGroup]="quickCaptureForm" (ngSubmit)="submitQuickCapture()">

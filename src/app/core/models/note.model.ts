@@ -28,3 +28,11 @@ export interface QuickCaptureRequest {
   content: string;
   type: NoteType | null;
 }
+
+export interface RelatedNote {
+  id: string;
+  title: string | null;
+  content: string;
+  type: NoteType;
+  similarity: number;
+}
