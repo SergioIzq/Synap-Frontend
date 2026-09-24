@@ -11,6 +11,11 @@ html, body {
   color: var(--p-text-color, #495057);
 }
 
+/* Hide PrimeNG unlicensed banner — host element is in the DOM, shadow root is closed */
+#p-license-host {
+  display: none !important;
+}
+
 /* Markdown rendered content */
 .markdown-body {
   line-height: 1.6;

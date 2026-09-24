@@ -49,7 +49,7 @@ import { NoteCardComponent } from '../components/note-card.component';
     }
   `],
   template: `
-    <h2>Your notes</h2>
+    <h2>Tus notas</h2>
 
     <!-- Quick capture (specs/knowledge-vault: primary capture surface, always visible) -->
     <form class="capture-form" [formGroup]="quickCaptureForm" (ngSubmit)="submitQuickCapture()">
@@ -57,13 +57,13 @@ import { NoteCardComponent } from '../components/note-card.component';
         <input
           pInputText
           formControlName="content"
-          placeholder="Capture a thought, a snippet, a link…"
+          placeholder="Anota un pensamiento, un fragmento, un enlace…"
           autocomplete="off"
         />
         <p-button
           type="submit"
           icon="pi pi-plus"
-          label="Add"
+          label="Añadir"
           [loading]="notesStore.loading()"
           [disabled]="!quickCaptureForm.getRawValue().content.trim()"
         />
@@ -75,7 +75,7 @@ import { NoteCardComponent } from '../components/note-card.component';
       <input
         pInputText
         [formControl]="searchForm.controls.term"
-        placeholder="Search notes…"
+        placeholder="Buscar notas…"
         (input)="submitSearch()"
         style="flex:1"
       />
@@ -84,7 +84,7 @@ import { NoteCardComponent } from '../components/note-card.component';
         [options]="tagOptions()"
         optionLabel="label"
         optionValue="value"
-        placeholder="All tags"
+        placeholder="Todas las etiquetas"
         (onChange)="submitSearch()"
         style="min-width: 140px"
       />
@@ -97,9 +97,9 @@ import { NoteCardComponent } from '../components/note-card.component';
     }
 
     @if (notesStore.loading()) {
-      <p class="empty-state">Loading…</p>
+      <p class="empty-state">Cargando…</p>
     } @else if (notesStore.notes().length === 0) {
-      <p class="empty-state">No notes yet — capture your first one above.</p>
+      <p class="empty-state">Aún no hay notas — captura la primera arriba.</p>
     } @else {
       @for (note of notesStore.notes(); track note.id) {
         <app-note-card [note]="note" />
@@ -116,7 +116,7 @@ export class NotesListPage implements OnInit {
 
   protected tagOptions() {
     return [
-      { label: 'All tags', value: '' },
+      { label: 'Todas las etiquetas', value: '' },
       ...this.notesStore.allTags().map((t) => ({ label: `#${t}`, value: t })),
     ];
   }

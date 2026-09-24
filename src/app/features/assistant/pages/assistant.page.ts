@@ -76,28 +76,28 @@ import { AssistantStore } from '../store/assistant.store';
     }
   `],
   template: `
-    <h2>Ask Synap</h2>
+    <h2>Pregunta a Synap</h2>
 
     @if (assistantStore.messages().length === 0) {
-      <p class="empty-hint">Ask about anything you've captured — "I hit this error before, what did I do?"</p>
+      <p class="empty-hint">Pregunta sobre cualquier cosa que hayas guardado — "¿Cómo resolví ese error la última vez?"</p>
     }
 
     <div class="chat-list" #chatList>
       @for (message of assistantStore.messages(); track $index) {
         <p-card>
-          <p class="question-label">You</p>
+          <p class="question-label">Tú</p>
           <p class="question-text">{{ message.question }}</p>
 
           <p class="answer-label">Synap</p>
           @if (message.pending) {
-            <p class="answer-pending">Thinking…</p>
+            <p class="answer-pending">Pensando…</p>
           } @else if (message.answer) {
             <!-- Markdown rendered via MarkdownService; content is from our own trusted backend -->
             <div class="markdown-body" [innerHTML]="renderMarkdown(message.answer.answer)"></div>
             @if (message.answer.grounded) {
               <p class="grounded-note">
                 <i class="pi pi-book"></i>
-                Grounded in {{ message.answer.sourceNoteIds.length }} of your notes.
+                Basado en {{ message.answer.sourceNoteIds.length }} de tus notas.
               </p>
             }
           }
@@ -117,13 +117,13 @@ import { AssistantStore } from '../store/assistant.store';
           #questionInput
           pInputText
           [formControl]="questionControl"
-          placeholder="Ask a question…"
+          placeholder="Haz una pregunta…"
           autocomplete="off"
           (keyup.enter)="submit()"
         />
         <p-button
           icon="pi pi-send"
-          label="Ask"
+          label="Preguntar"
           [disabled]="!questionControl.value?.trim()"
           [loading]="!!assistantStore.messages()[assistantStore.messages().length - 1]?.pending"
           (onClick)="submit()"

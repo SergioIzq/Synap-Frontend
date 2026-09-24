@@ -49,7 +49,7 @@ import { AuthStore } from '../../../core/stores/auth.store';
     }
   `],
   template: `
-    <p-card header="Log in to Synap">
+    <p-card header="Iniciar sesión en Synap">
       <form [formGroup]="form" (ngSubmit)="submit()">
 
         <div class="field">
@@ -60,19 +60,19 @@ import { AuthStore } from '../../../core/stores/auth.store';
             type="email"
             formControlName="email"
             autocomplete="email"
-            placeholder="you@example.com"
+            placeholder="tu@ejemplo.com"
           />
         </div>
 
         <div class="field">
-          <label for="password">Password</label>
+          <label for="password">Contraseña</label>
           <p-password
             inputId="password"
             formControlName="password"
             [feedback]="false"
             [toggleMask]="true"
             autocomplete="current-password"
-            placeholder="Your password"
+            placeholder="Tu contraseña"
             styleClass="w-full"
           />
         </div>
@@ -83,7 +83,7 @@ import { AuthStore } from '../../../core/stores/auth.store';
 
         <p-button
           type="submit"
-          [label]="authStore.loading() ? 'Logging in…' : 'Log in'"
+          [label]="authStore.loading() ? 'Iniciando sesión…' : 'Iniciar sesión'"
           icon="pi pi-sign-in"
           [loading]="authStore.loading()"
           [disabled]="form.invalid"
@@ -92,7 +92,7 @@ import { AuthStore } from '../../../core/stores/auth.store';
       </form>
 
       <div class="footer-link">
-        No account yet? <a routerLink="/auth/register">Register</a>
+        ¿No tienes cuenta? <a routerLink="/auth/register">Regístrate</a>
       </div>
     </p-card>
   `,

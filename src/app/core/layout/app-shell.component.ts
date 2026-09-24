@@ -72,17 +72,17 @@ import { AuthStore } from '../stores/auth.store';
 
       <a class="nav-link" routerLink="/app/notes" routerLinkActive="active">
         <i class="pi pi-book"></i>
-        Notes
+        Notas
       </a>
       <a class="nav-link" routerLink="/app/assistant" routerLinkActive="active">
         <i class="pi pi-comments"></i>
-        Assistant
+        Asistente
       </a>
 
       <div class="sidebar-spacer"></div>
 
       <p-button
-        label="Log out"
+        label="Cerrar sesión"
         icon="pi pi-sign-out"
         severity="secondary"
         [text]="true"

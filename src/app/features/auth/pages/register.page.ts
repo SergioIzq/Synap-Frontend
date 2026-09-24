@@ -47,11 +47,11 @@ import { AuthStore } from '../../../core/stores/auth.store';
     }
   `],
   template: `
-    <p-card header="Create your Synap account">
+    <p-card header="Crea tu cuenta de Synap">
       @if (registered()) {
-        <p-message severity="success" styleClass="w-full">Account created!</p-message>
+        <p-message severity="success" styleClass="w-full">¡Cuenta creada!</p-message>
         <div class="footer-link" style="margin-top: 1rem">
-          <a routerLink="/auth/login">Log in to continue →</a>
+          <a routerLink="/auth/login">Iniciar sesión para continuar →</a>
         </div>
       } @else {
         <form [formGroup]="form" (ngSubmit)="submit()">
@@ -64,18 +64,18 @@ import { AuthStore } from '../../../core/stores/auth.store';
               type="email"
               formControlName="email"
               autocomplete="email"
-              placeholder="you@example.com"
+              placeholder="tu@ejemplo.com"
             />
           </div>
 
           <div class="field">
-            <label for="password">Password</label>
+            <label for="password">Contraseña</label>
             <p-password
               inputId="password"
               formControlName="password"
               [toggleMask]="true"
               autocomplete="new-password"
-              placeholder="At least 8 characters"
+              placeholder="Al menos 8 caracteres"
               styleClass="w-full"
             />
           </div>
@@ -86,7 +86,7 @@ import { AuthStore } from '../../../core/stores/auth.store';
 
           <p-button
             type="submit"
-            [label]="authStore.loading() ? 'Creating account…' : 'Create account'"
+            [label]="authStore.loading() ? 'Creando cuenta…' : 'Crear cuenta'"
             icon="pi pi-user-plus"
             [loading]="authStore.loading()"
             [disabled]="form.invalid"
@@ -95,7 +95,7 @@ import { AuthStore } from '../../../core/stores/auth.store';
         </form>
 
         <div class="footer-link">
-          Already have an account? <a routerLink="/auth/login">Log in</a>
+          ¿Ya tienes cuenta? <a routerLink="/auth/login">Iniciar sesión</a>
         </div>
       }
     </p-card>

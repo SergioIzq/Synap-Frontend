@@ -121,13 +121,13 @@ import { NotesStore } from '../store/notes.store';
     @if (note(); as note) {
       @if (editing()) {
         <form class="edit-form" [formGroup]="editForm" (ngSubmit)="save()">
-          <input pInputText formControlName="title" placeholder="Title (optional)" />
+          <input pInputText formControlName="title" placeholder="Título (opcional)" />
           <textarea pTextarea formControlName="content" [rows]="14" autoResize></textarea>
           <div class="actions">
-            <p-button type="submit" label="Save" icon="pi pi-check" />
+            <p-button type="submit" label="Guardar" icon="pi pi-check" />
             <p-button
               type="button"
-              label="Cancel"
+              label="Cancelar"
               icon="pi pi-times"
               severity="secondary"
               (onClick)="editing.set(false)"
@@ -141,7 +141,7 @@ import { NotesStore } from '../store/notes.store';
             icon="pi pi-arrow-left"
             severity="secondary"
             [text]="true"
-            label="Back"
+            label="Volver"
           />
           @if (note.title) {
             <h1>{{ note.title }}</h1>
@@ -168,7 +168,7 @@ import { NotesStore } from '../store/notes.store';
               <div class="code-block">
                 <p-button
                   class="copy-btn"
-                  [label]="copied() ? 'Copied!' : 'Copy'"
+                  [label]="copied() ? '¡Copiado!' : 'Copiar'"
                   icon="pi pi-copy"
                   size="small"
                   severity="secondary"
@@ -199,7 +199,7 @@ import { NotesStore } from '../store/notes.store';
               <p-tag [value]="'#' + tag" severity="secondary" />
             }
             <form class="add-tag-form" [formGroup]="tagForm" (ngSubmit)="addTag()">
-              <input pInputText formControlName="tagName" placeholder="Add tag" />
+              <input pInputText formControlName="tagName" placeholder="Añadir etiqueta" />
               <p-button type="submit" icon="pi pi-tag" size="small" severity="secondary" />
             </form>
           </div>
@@ -207,7 +207,7 @@ import { NotesStore } from '../store/notes.store';
 
         @if (relatedNotes().length > 0) {
           <div class="related-section">
-            <h3>Related notes</h3>
+            <h3>Notas relacionadas</h3>
             @for (related of relatedNotes(); track related.id) {
               <a class="related-link" [routerLink]="['/app/notes', related.id]">
                 {{ related.title ?? preview(related.content) }}
@@ -223,7 +223,7 @@ import { NotesStore } from '../store/notes.store';
         </p-message>
       }
     } @else {
-      <p>Note not found.</p>
+      <p>Nota no encontrada.</p>
     }
   `,
 })
