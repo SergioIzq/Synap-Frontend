@@ -1,38 +1,100 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterLink, ActivatedRoute } from '@angular/router';
+import { CardModule } from 'primeng/card';
+import { InputTextModule } from 'primeng/inputtext';
+import { PasswordModule } from 'primeng/password';
+import { ButtonModule } from 'primeng/button';
+import { MessageModule } from 'primeng/message';
 import { AuthStore } from '../../../core/stores/auth.store';
 
 @Component({
   selector: 'app-login-page',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    CardModule,
+    InputTextModule,
+    PasswordModule,
+    ButtonModule,
+    MessageModule,
+  ],
+  styles: [`
+    :host {
+      width: 100%;
+      max-width: 400px;
+      padding: 1rem;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-bottom: 1.25rem;
+
+      label { font-size: 0.9rem; font-weight: 500; }
+
+      p-inputtext, p-password { width: 100%; }
+
+      :host ::ng-deep input { width: 100%; }
+    }
+
+    .footer-link {
+      margin-top: 1rem;
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--p-text-muted-color);
+    }
+  `],
   template: `
-    <main class="auth-page">
-      <h1>Log in to Synap</h1>
-
+    <p-card header="Log in to Synap">
       <form [formGroup]="form" (ngSubmit)="submit()">
-        <label>
-          Email
-          <input type="email" formControlName="email" autocomplete="email" />
-        </label>
 
-        <label>
-          Password
-          <input type="password" formControlName="password" autocomplete="current-password" />
-        </label>
+        <div class="field">
+          <label for="email">Email</label>
+          <input
+            pInputText
+            id="email"
+            type="email"
+            formControlName="email"
+            autocomplete="email"
+            placeholder="you@example.com"
+          />
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <p-password
+            inputId="password"
+            formControlName="password"
+            [feedback]="false"
+            [toggleMask]="true"
+            autocomplete="current-password"
+            placeholder="Your password"
+            styleClass="w-full"
+          />
+        </div>
 
         @if (authStore.error()) {
-          <p class="error" role="alert">{{ authStore.error() }}</p>
+          <p-message severity="error" styleClass="w-full">{{ authStore.error() }}</p-message>
         }
 
-        <button type="submit" [disabled]="form.invalid || authStore.loading()">
-          {{ authStore.loading() ? 'Logging in...' : 'Log in' }}
-        </button>
+        <p-button
+          type="submit"
+          [label]="authStore.loading() ? 'Logging in…' : 'Log in'"
+          icon="pi pi-sign-in"
+          [loading]="authStore.loading()"
+          [disabled]="form.invalid"
+          styleClass="w-full"
+        />
       </form>
 
-      <p>No account yet? <a routerLink="/auth/register">Register</a></p>
-    </main>
+      <div class="footer-link">
+        No account yet? <a routerLink="/auth/register">Register</a>
+      </div>
+    </p-card>
   `,
 })
 export class LoginPage {
@@ -47,16 +109,14 @@ export class LoginPage {
   });
 
   async submit(): Promise<void> {
-    if (this.form.invalid) {
-      return;
-    }
+    if (this.form.invalid) return;
 
     try {
       await this.authStore.login(this.form.getRawValue());
-      const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') ?? '/';
+      const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') ?? '/app';
       await this.router.navigateByUrl(returnUrl);
     } catch {
-      // Error is already surfaced via authStore.error().
+      // Error surfaced via authStore.error()
     }
   }
 }

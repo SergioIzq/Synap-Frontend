@@ -1,47 +1,108 @@
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
+import { CardModule } from 'primeng/card';
+import { InputTextModule } from 'primeng/inputtext';
+import { PasswordModule } from 'primeng/password';
+import { ButtonModule } from 'primeng/button';
+import { MessageModule } from 'primeng/message';
 import { AuthStore } from '../../../core/stores/auth.store';
 
 @Component({
   selector: 'app-register-page',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
-  template: `
-    <main class="auth-page">
-      <h1>Create your Synap account</h1>
+  changeDetection: ChangeDetectionStrategy.Eager,
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    CardModule,
+    InputTextModule,
+    PasswordModule,
+    ButtonModule,
+    MessageModule,
+  ],
+  styles: [`
+    :host {
+      width: 100%;
+      max-width: 400px;
+      padding: 1rem;
+    }
 
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-bottom: 1.25rem;
+
+      label { font-size: 0.9rem; font-weight: 500; }
+
+      :host ::ng-deep input { width: 100%; }
+    }
+
+    .footer-link {
+      margin-top: 1rem;
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--p-text-muted-color);
+    }
+  `],
+  template: `
+    <p-card header="Create your Synap account">
       @if (registered()) {
-        <p>Account created. <a routerLink="/auth/login">Log in</a> to continue.</p>
+        <p-message severity="success" styleClass="w-full">Account created!</p-message>
+        <div class="footer-link" style="margin-top: 1rem">
+          <a routerLink="/auth/login">Log in to continue →</a>
+        </div>
       } @else {
         <form [formGroup]="form" (ngSubmit)="submit()">
-          <label>
-            Email
-            <input type="email" formControlName="email" autocomplete="email" />
-          </label>
 
-          <label>
-            Password
-            <input type="password" formControlName="password" autocomplete="new-password" />
-          </label>
+          <div class="field">
+            <label for="email">Email</label>
+            <input
+              pInputText
+              id="email"
+              type="email"
+              formControlName="email"
+              autocomplete="email"
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <div class="field">
+            <label for="password">Password</label>
+            <p-password
+              inputId="password"
+              formControlName="password"
+              [toggleMask]="true"
+              autocomplete="new-password"
+              placeholder="At least 8 characters"
+              styleClass="w-full"
+            />
+          </div>
 
           @if (authStore.error()) {
-            <p class="error" role="alert">{{ authStore.error() }}</p>
+            <p-message severity="error" styleClass="w-full">{{ authStore.error() }}</p-message>
           }
 
-          <button type="submit" [disabled]="form.invalid || authStore.loading()">
-            {{ authStore.loading() ? 'Creating account...' : 'Create account' }}
-          </button>
+          <p-button
+            type="submit"
+            [label]="authStore.loading() ? 'Creating account…' : 'Create account'"
+            icon="pi pi-user-plus"
+            [loading]="authStore.loading()"
+            [disabled]="form.invalid"
+            styleClass="w-full"
+          />
         </form>
 
-        <p>Already have an account? <a routerLink="/auth/login">Log in</a></p>
+        <div class="footer-link">
+          Already have an account? <a routerLink="/auth/login">Log in</a>
+        </div>
       }
-    </main>
+    </p-card>
   `,
 })
 export class RegisterPage {
   protected readonly authStore = inject(AuthStore);
-  private readonly router = inject(Router);
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly registered = signal(false);
@@ -52,15 +113,13 @@ export class RegisterPage {
   });
 
   async submit(): Promise<void> {
-    if (this.form.invalid) {
-      return;
-    }
+    if (this.form.invalid) return;
 
     try {
       await this.authStore.register(this.form.getRawValue());
       this.registered.set(true);
     } catch {
-      // Error is already surfaced via authStore.error().
+      // Error surfaced via authStore.error()
     }
   }
 }

@@ -1,6 +1,19 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { CardModule } from 'primeng/card';
+import { ButtonModule } from 'primeng/button';
+import { InputTextModule } from 'primeng/inputtext';
+import { TextareaModule } from 'primeng/textarea';
+import { TagModule } from 'primeng/tag';
+import { MessageModule } from 'primeng/message';
 import { MarkdownService } from '../../../core/services/markdown.service';
 import { NoteService } from '../../../core/services/api/note.service';
 import { RelatedNote } from '../../../core/models';
@@ -9,83 +22,206 @@ import { NotesStore } from '../store/notes.store';
 @Component({
   selector: 'app-note-detail-page',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.Eager,
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    CardModule,
+    ButtonModule,
+    InputTextModule,
+    TextareaModule,
+    TagModule,
+    MessageModule,
+  ],
+  styles: [`
+    .detail-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+
+      h1 { margin: 0; font-size: 1.4rem; flex: 1; }
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .markdown-body { margin-top: 0.5rem; }
+
+    .code-block {
+      position: relative;
+
+      pre {
+        margin: 0;
+        padding: 1rem;
+        background: var(--p-surface-100);
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.9rem;
+      }
+
+      .copy-btn {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+      }
+    }
+
+    .tags-section {
+      margin-top: 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+    }
+
+    .add-tag-form {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+
+      input { width: 120px; }
+    }
+
+    .related-section {
+      margin-top: 1.5rem;
+
+      h3 { margin-bottom: 0.5rem; font-size: 1rem; }
+    }
+
+    .related-link {
+      display: block;
+      padding: 0.4rem 0;
+      color: var(--p-primary-color);
+      text-decoration: none;
+      font-size: 0.9rem;
+
+      &:hover { text-decoration: underline; }
+    }
+
+    .bookmark-image {
+      max-width: 100%;
+      max-height: 200px;
+      object-fit: cover;
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+    }
+
+    .edit-form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+
+      textarea { min-height: 240px; }
+    }
+  `],
   template: `
     @if (note(); as note) {
-      <main class="note-detail-page">
-        <a routerLink="/notes">&larr; Back</a>
-
-        @if (editing()) {
-          <form [formGroup]="editForm" (ngSubmit)="save()">
-            <input type="text" formControlName="title" placeholder="Title (optional)" />
-            <textarea formControlName="content" rows="12"></textarea>
-            <div class="actions">
-              <button type="submit">Save</button>
-              <button type="button" (click)="editing.set(false)">Cancel</button>
-            </div>
-          </form>
-        } @else {
+      @if (editing()) {
+        <form class="edit-form" [formGroup]="editForm" (ngSubmit)="save()">
+          <input pInputText formControlName="title" placeholder="Title (optional)" />
+          <textarea pTextarea formControlName="content" [rows]="14" autoResize></textarea>
+          <div class="actions">
+            <p-button type="submit" label="Save" icon="pi pi-check" />
+            <p-button
+              type="button"
+              label="Cancel"
+              icon="pi pi-times"
+              severity="secondary"
+              (onClick)="editing.set(false)"
+            />
+          </div>
+        </form>
+      } @else {
+        <div class="detail-header">
+          <p-button
+            routerLink="/app/notes"
+            icon="pi pi-arrow-left"
+            severity="secondary"
+            [text]="true"
+            label="Back"
+          />
           @if (note.title) {
             <h1>{{ note.title }}</h1>
           }
+          <div class="actions">
+            <p-button
+              icon="pi pi-pencil"
+              severity="secondary"
+              [text]="true"
+              (onClick)="startEdit(note)"
+            />
+            <p-button
+              icon="pi pi-trash"
+              severity="danger"
+              [text]="true"
+              (onClick)="deleteNote()"
+            />
+          </div>
+        </div>
 
+        <p-card>
           @switch (note.type) {
             @case ('codeSnippet') {
               <div class="code-block">
-                <button type="button" (click)="copyToClipboard(note.content)">
-                  {{ copied() ? 'Copied!' : 'Copy' }}
-                </button>
+                <p-button
+                  class="copy-btn"
+                  [label]="copied() ? 'Copied!' : 'Copy'"
+                  icon="pi pi-copy"
+                  size="small"
+                  severity="secondary"
+                  [text]="true"
+                  (onClick)="copyToClipboard(note.content)"
+                />
                 <pre><code [innerHTML]="highlightedContent()"></code></pre>
               </div>
             }
             @case ('bookmark') {
-              <div class="bookmark-card">
-                @if (note.metadataImageUrl) {
-                  <img [src]="note.metadataImageUrl" alt="" />
-                }
-                <h2>{{ note.metadataTitle ?? note.content }}</h2>
-                @if (note.metadataDescription) {
-                  <p>{{ note.metadataDescription }}</p>
-                }
-                <a [href]="note.content" target="_blank" rel="noopener">{{ note.content }}</a>
-              </div>
+              @if (note.metadataImageUrl) {
+                <img [src]="note.metadataImageUrl" alt="" class="bookmark-image" />
+              }
+              <h2>{{ note.metadataTitle ?? note.content }}</h2>
+              @if (note.metadataDescription) {
+                <p>{{ note.metadataDescription }}</p>
+              }
+              <a [href]="note.content" target="_blank" rel="noopener">{{ note.content }}</a>
             }
             @default {
-              <div [innerHTML]="renderedMarkdown()"></div>
+              <!-- Markdown rendered via MarkdownService; content is from our own trusted backend -->
+              <div class="markdown-body" [innerHTML]="renderedMarkdown()"></div>
             }
           }
 
-          <div class="actions">
-            <button type="button" (click)="editing.set(true)">Edit</button>
-            <button type="button" (click)="deleteNote()">Delete</button>
-          </div>
-
-          <section class="tags">
+          <div class="tags-section">
             @for (tag of note.tags; track tag) {
-              <span class="tag-chip">#{{ tag }}</span>
+              <p-tag [value]="'#' + tag" severity="secondary" />
             }
-            <form [formGroup]="tagForm" (ngSubmit)="addTag()">
-              <input type="text" formControlName="tagName" placeholder="Add tag" />
-              <button type="submit">Add</button>
+            <form class="add-tag-form" [formGroup]="tagForm" (ngSubmit)="addTag()">
+              <input pInputText formControlName="tagName" placeholder="Add tag" />
+              <p-button type="submit" icon="pi pi-tag" size="small" severity="secondary" />
             </form>
-          </section>
+          </div>
+        </p-card>
 
-          @if (relatedNotes().length > 0) {
-            <section class="related-notes">
-              <h3>Related notes</h3>
-              @for (related of relatedNotes(); track related.id) {
-                <a class="related-note" [routerLink]="['/notes', related.id]">
-                  {{ related.title ?? preview(related.content) }}
-                </a>
-              }
-            </section>
-          }
+        @if (relatedNotes().length > 0) {
+          <div class="related-section">
+            <h3>Related notes</h3>
+            @for (related of relatedNotes(); track related.id) {
+              <a class="related-link" [routerLink]="['/app/notes', related.id]">
+                {{ related.title ?? preview(related.content) }}
+              </a>
+            }
+          </div>
         }
+      }
 
-        @if (notesStore.error()) {
-          <p class="error" role="alert">{{ notesStore.error() }}</p>
-        }
-      </main>
+      @if (notesStore.error()) {
+        <p-message severity="error" styleClass="w-full" style="margin-top: 1rem">
+          {{ notesStore.error() }}
+        </p-message>
+      }
     } @else {
       <p>Note not found.</p>
     }
@@ -109,8 +245,14 @@ export class NoteDetailPage implements OnInit {
   protected readonly editForm = this.formBuilder.nonNullable.group({ title: [''], content: [''] });
   protected readonly tagForm = this.formBuilder.nonNullable.group({ tagName: [''] });
 
-  protected readonly renderedMarkdown = computed(() => this.markdownService.toSafeHtml(this.note()?.content ?? ''));
-  protected readonly highlightedContent = computed(() => this.markdownService.highlightCode(this.note()?.content ?? ''));
+  // toSafeHtml already calls bypassSecurityTrustHtml; content is from our own trusted backend
+  protected readonly renderedMarkdown = computed(() =>
+    this.markdownService.toSafeHtml(this.note()?.content ?? ''),
+  );
+
+  protected readonly highlightedContent = computed(() =>
+    this.markdownService.highlightCode(this.note()?.content ?? ''),
+  );
 
   async ngOnInit(): Promise<void> {
     if (this.notesStore.notes().length === 0) {
@@ -122,12 +264,16 @@ export class NoteDetailPage implements OnInit {
       this.editForm.setValue({ title: note.title ?? '', content: note.content });
     }
 
-    // specs/ai-assistant "Semantic relations between notes" - best-effort: an empty panel is a
-    // fine fallback if the AI service is briefly unavailable, not worth surfacing as an error.
+    // specs/ai-assistant "Semantic relations" - best-effort, empty panel is fine on failure
     this.noteService.getRelated(this.noteId()).subscribe({
       next: (related) => this.relatedNotes.set(related),
       error: () => this.relatedNotes.set([]),
     });
+  }
+
+  startEdit(note: { title: string | null; content: string }): void {
+    this.editForm.setValue({ title: note.title ?? '', content: note.content });
+    this.editing.set(true);
   }
 
   async save(): Promise<void> {
@@ -139,7 +285,7 @@ export class NoteDetailPage implements OnInit {
       await this.notesStore.update(note.id, { title: title.trim() || null, content });
       this.editing.set(false);
     } catch {
-      // Error is already surfaced via notesStore.error().
+      // Error surfaced via notesStore.error()
     }
   }
 
@@ -149,9 +295,9 @@ export class NoteDetailPage implements OnInit {
 
     try {
       await this.notesStore.delete(note.id);
-      await this.router.navigateByUrl('/notes');
+      await this.router.navigateByUrl('/app/notes');
     } catch {
-      // Error is already surfaced via notesStore.error().
+      // Error surfaced via notesStore.error()
     }
   }
 
@@ -164,7 +310,7 @@ export class NoteDetailPage implements OnInit {
       await this.notesStore.addTag(note.id, tagName);
       this.tagForm.reset({ tagName: '' });
     } catch {
-      // Error is already surfaced via notesStore.error().
+      // Error surfaced via notesStore.error()
     }
   }
 
