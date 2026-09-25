@@ -22,6 +22,11 @@ export const routes: Routes = [
           import('./features/assistant/assistant.routes').then((m) => m.ASSISTANT_ROUTES),
       },
       {
+        path: 'settings',
+        loadComponent: () =>
+          import('./features/settings/pages/settings.page').then((m) => m.SettingsPage),
+      },
+      {
         path: '',
         pathMatch: 'full',
         redirectTo: 'notes',

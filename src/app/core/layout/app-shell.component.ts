@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
+import { ToastModule } from 'primeng/toast';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { AuthStore } from '../stores/auth.store';
 import { routeAnimations } from '../animations/route.animations';
 
@@ -8,7 +10,7 @@ import { routeAnimations } from '../animations/route.animations';
   selector: 'app-shell',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, ToastModule, ConfirmDialogModule],
   animations: [routeAnimations],
   styles: [`
     :host {
@@ -109,6 +111,11 @@ import { routeAnimations } from '../animations/route.animations';
 
       <div class="sidebar-spacer"></div>
 
+      <a class="nav-link" routerLink="/app/settings" routerLinkActive="active">
+        <i class="pi pi-cog"></i>
+        Configuración
+      </a>
+
       <p-button
         label="Cerrar sesión"
         icon="pi pi-sign-out"
@@ -119,6 +126,9 @@ import { routeAnimations } from '../animations/route.animations';
         styleClass="logout-btn"
       />
     </aside>
+
+    <p-toast position="top-right" />
+    <p-confirmdialog />
 
     <main class="content">
       <div class="route-wrapper" [@routeAnimation]="routeState">

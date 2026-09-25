@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { providePrimeNG } from 'primeng/config';
+import { ConfirmationService, MessageService } from 'primeng/api';
 import Aura from '@primeuix/themes/aura';
 import { definePreset } from '@primeuix/themes';
 
@@ -39,6 +40,9 @@ export const appConfig: ApplicationConfig = {
       withInterceptors([authInterceptor, errorInterceptor, loadingInterceptor]),
     ),
     provideAnimationsAsync(),
+    // App-wide so any page can raise a toast or a confirmation; rendered once in app-shell.
+    MessageService,
+    ConfirmationService,
     providePrimeNG({ theme: { preset: SynapTheme, options: { darkModeSelector: false } } }),
     provideServiceWorker('ngsw-worker.js', {
       enabled: !isDevMode(),
