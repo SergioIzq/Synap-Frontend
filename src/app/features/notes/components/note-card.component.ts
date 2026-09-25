@@ -21,7 +21,7 @@ import { Note } from '../../../core/models';
         transform: translateY(-2px);
 
         ::ng-deep .p-card {
-          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.10);
+          box-shadow: var(--synap-card-hover-shadow);
         }
       }
     }
@@ -40,7 +40,7 @@ import { Note } from '../../../core/models';
       font-size: 0.85rem;
       max-height: 4.5rem;
       overflow: hidden;
-      background: var(--p-surface-100);
+      background: var(--synap-code-bg);
       border-radius: 4px;
       padding: 0.5rem;
     }

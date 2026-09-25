@@ -1,4 +1,4 @@
-import { ApplicationConfig, provideBrowserGlobalErrorListeners, isDevMode } from '@angular/core';
+import { ApplicationConfig, inject, isDevMode, provideAppInitializer, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
@@ -8,6 +8,7 @@ import Aura from '@primeuix/themes/aura';
 import { definePreset } from '@primeuix/themes';
 
 import { routes } from './app.routes';
+import { ThemeService } from './core/services/theme.service';
 import { provideServiceWorker } from '@angular/service-worker';
 
 const SynapTheme = definePreset(Aura, {
@@ -40,10 +41,12 @@ export const appConfig: ApplicationConfig = {
       withInterceptors([authInterceptor, errorInterceptor, loadingInterceptor]),
     ),
     provideAnimationsAsync(),
+    // Instantiate eagerly so the OS light/dark listener runs on every page, not just Settings.
+    provideAppInitializer(() => void inject(ThemeService)),
     // App-wide so any page can raise a toast or a confirmation; rendered once in app-shell.
     MessageService,
     ConfirmationService,
-    providePrimeNG({ theme: { preset: SynapTheme, options: { darkModeSelector: false } } }),
+    providePrimeNG({ theme: { preset: SynapTheme, options: { darkModeSelector: '.app-dark' } } }),
     provideServiceWorker('ngsw-worker.js', {
       enabled: !isDevMode(),
       registrationStrategy: 'registerWhenStable:30000',

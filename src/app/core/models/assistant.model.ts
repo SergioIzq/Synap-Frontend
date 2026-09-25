@@ -7,9 +7,17 @@ export type AssistantAnswerStatus =
   | 'rateLimited'
   | 'unavailable';
 
+export interface AssistantSource {
+  id: string;
+  /** The note's title, or a content preview when it has none. */
+  title: string;
+}
+
 export interface AssistantAnswer {
   answer: string;
   sourceNoteIds: string[];
+  /** May be missing when talking to an older backend. */
+  sources?: AssistantSource[];
   grounded: boolean;
   status: AssistantAnswerStatus;
 }

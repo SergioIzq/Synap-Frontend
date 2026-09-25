@@ -1,22 +1,35 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="utf-8" />
     <title>Synap</title>
     <base href="/" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
     <link rel="manifest" href="manifest.webmanifest" />
     <!-- iOS has no Web Share Target API / install prompt; these meta tags are what make
          "Add to Home Screen" behave like an installed app (see design.md Decision 3). -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Synap" />
     <link rel="apple-touch-icon" href="icons/icon-192x192.png" />
     <meta name="theme-color" content="#ffffff" />
+    <!-- Applies the saved/OS theme before Angular boots, so a dark-mode user never sees a light
+         flash. Mirrors ThemeService (same storage key and class). -->
+    <script>
+      (function () {
+        var pref = 'system';
+        try { pref = localStorage.getItem('synap.theme') || 'system'; } catch (e) {}
+        var dark = pref === 'dark' || (pref !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) {
+          document.documentElement.classList.add('app-dark');
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#09090b');
+        }
+      })();
+    </script>
   </head>
   <body>
     <app-root></app-root>
-    <noscript>Please enable JavaScript to continue using this application.</noscript>
+    <noscript>Activa JavaScript para usar Synap.</noscript>
   </body>
 </html>

@@ -14,6 +14,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { TextareaModule } from 'primeng/textarea';
 import { TagModule } from 'primeng/tag';
 import { MessageModule } from 'primeng/message';
+import { ConfirmationService } from 'primeng/api';
 import { MarkdownService } from '../../../core/services/markdown.service';
 import { NoteService } from '../../../core/services/api/note.service';
 import { RelatedNote } from '../../../core/models';
@@ -56,7 +57,7 @@ import { NotesStore } from '../store/notes.store';
       pre {
         margin: 0;
         padding: 1rem;
-        background: var(--p-surface-100);
+        background: var(--synap-code-bg);
         border-radius: 6px;
         overflow-x: auto;
         font-size: 0.9rem;
@@ -122,7 +123,15 @@ import { NotesStore } from '../store/notes.store';
       @if (editing()) {
         <form class="edit-form" [formGroup]="editForm" (ngSubmit)="save()">
           <input pInputText formControlName="title" placeholder="Título (opcional)" />
-          <textarea pTextarea formControlName="content" [rows]="14" autoResize></textarea>
+          <textarea
+            pTextarea
+            formControlName="content"
+            [rows]="14"
+            autoResize
+            aria-label="Contenido"
+            (keydown.control.enter)="save()"
+            (keydown.meta.enter)="save()"
+          ></textarea>
           <div class="actions">
             <p-button type="submit" label="Guardar" icon="pi pi-check" />
             <p-button
@@ -151,13 +160,15 @@ import { NotesStore } from '../store/notes.store';
               icon="pi pi-pencil"
               severity="secondary"
               [text]="true"
+              ariaLabel="Editar nota"
               (onClick)="startEdit(note)"
             />
             <p-button
               icon="pi pi-trash"
               severity="danger"
               [text]="true"
-              (onClick)="deleteNote()"
+              ariaLabel="Eliminar nota"
+              (onClick)="confirmDelete()"
             />
           </div>
         </div>
@@ -233,6 +244,7 @@ export class NoteDetailPage implements OnInit {
   private readonly markdownService = inject(MarkdownService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly confirmationService = inject(ConfirmationService);
   private readonly formBuilder = inject(FormBuilder);
 
   private readonly noteId = signal(this.route.snapshot.paramMap.get('id')!);
@@ -255,7 +267,9 @@ export class NoteDetailPage implements OnInit {
   );
 
   async ngOnInit(): Promise<void> {
-    if (this.notesStore.notes().length === 0) {
+    // Also when the note isn't in the currently loaded (possibly filtered) list - e.g. arriving
+    // from an assistant source link or a related-note link.
+    if (!this.note()) {
       await this.notesStore.search(null, null);
     }
 
@@ -285,11 +299,25 @@ export class NoteDetailPage implements OnInit {
       await this.notesStore.update(note.id, { title: title.trim() || null, content });
       this.editing.set(false);
     } catch {
-      // Error surfaced via notesStore.error()
+      // Failure already reported as a toast by NotesStore
     }
   }
 
-  async deleteNote(): Promise<void> {
+  /** specs/web-experience "Destructive actions require confirmation". */
+  protected confirmDelete(): void {
+    this.confirmationService.confirm({
+      header: 'Eliminar nota',
+      message: 'La nota se eliminará definitivamente. ¿Continuar?',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'Eliminar',
+      rejectLabel: 'Cancelar',
+      acceptButtonProps: { severity: 'danger' },
+      rejectButtonProps: { severity: 'secondary', text: true },
+      accept: () => void this.deleteNote(),
+    });
+  }
+
+  private async deleteNote(): Promise<void> {
     const note = this.note();
     if (!note) return;
 
@@ -297,7 +325,7 @@ export class NoteDetailPage implements OnInit {
       await this.notesStore.delete(note.id);
       await this.router.navigateByUrl('/app/notes');
     } catch {
-      // Error surfaced via notesStore.error()
+      // Failure already reported as a toast by NotesStore
     }
   }
 
@@ -310,7 +338,7 @@ export class NoteDetailPage implements OnInit {
       await this.notesStore.addTag(note.id, tagName);
       this.tagForm.reset({ tagName: '' });
     } catch {
-      // Error surfaced via notesStore.error()
+      // Failure already reported as a toast by NotesStore
     }
   }
 

@@ -38,4 +38,8 @@ export const routes: Routes = [
     pathMatch: 'full',
     redirectTo: 'app',
   },
+  {
+    path: '**',
+    loadComponent: () => import('./features/not-found/not-found.page').then((m) => m.NotFoundPage),
+  },
 ];

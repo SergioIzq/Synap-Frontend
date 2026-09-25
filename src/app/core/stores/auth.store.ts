@@ -6,6 +6,9 @@ import { ApiResult, LoginRequest, RegisterRequest } from '../models';
 
 const TOKEN_STORAGE_KEY = 'synap_token';
 
+/** Per-user data cached on the device (e.g. the assistant conversation) - wiped on logout. */
+export const USER_CACHE_PREFIX = 'synap.chat.';
+
 /**
  * Plain-signals store, not @ngrx/signals' signalStore: that package has no release supporting
  * Angular 21 yet (its latest jumps straight from a ^20.0.0 to a ^22.0.0 peer dependency).
@@ -24,6 +27,8 @@ export class AuthStore {
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
   readonly isAuthenticated = computed(() => this._token() !== null);
+  /** The JWT's `sub` - only used to key per-user device caches, never trusted for authorization. */
+  readonly userId = computed(() => subjectOf(this._token()));
 
   async register(request: RegisterRequest): Promise<void> {
     this._loading.set(true);
@@ -54,6 +59,7 @@ export class AuthStore {
 
   logout(): void {
     this.setToken(null);
+    clearUserCaches();
   }
 
   private setToken(token: string | null): void {
@@ -71,5 +77,27 @@ export class AuthStore {
       return apiResult?.error?.message ?? fallback;
     }
     return fallback;
+  }
+}
+
+function subjectOf(token: string | null): string | null {
+  if (!token) return null;
+  try {
+    const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const sub = JSON.parse(atob(payload)).sub;
+    return typeof sub === 'string' ? sub : null;
+  } catch {
+    return null;
+  }
+}
+
+/** specs/ai-assistant "Conversation cleared on sign out" - the next user on this device sees nothing. */
+function clearUserCaches(): void {
+  try {
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith(USER_CACHE_PREFIX))
+      .forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // Storage unavailable - nothing was cached either.
   }
 }

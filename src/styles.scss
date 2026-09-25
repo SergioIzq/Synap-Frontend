@@ -9,13 +9,77 @@
   }
 }
 
+/*
+ * Synap's own design tokens - the only place in the app with literal colors (besides the logo
+ * SVG). Components use these or PrimeNG's --p-* tokens, so light and dark come from the same
+ * code: `.app-dark` on <html> (set by ThemeService, and by the inline script in index.html
+ * before Angular boots) flips both these and PrimeNG's own tokens (darkModeSelector).
+ */
+:root {
+  --synap-page-bg: #f8fafc;
+  --synap-text: #334155;
+  --synap-code-bg: #f1f5f9;
+
+  --synap-sidebar-bg: linear-gradient(160deg, #1e1b4b 0%, #312e81 100%);
+  --synap-sidebar-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
+  --synap-sidebar-brand: #e0e7ff;
+  --synap-nav-text: rgba(255, 255, 255, 0.7);
+  --synap-nav-text-active: #ffffff;
+  --synap-nav-hover-bg: rgba(255, 255, 255, 0.08);
+  --synap-nav-active-bg: rgba(255, 255, 255, 0.12);
+
+  --synap-mobile-bar-bg: rgba(255, 255, 255, 0.92);
+  --synap-mobile-bar-border: #e2e8f0;
+  --synap-mobile-nav-text: #64748b;
+  --synap-mobile-nav-active: #4f46e5;
+
+  --synap-bubble-user-bg: #6366f1;
+  --synap-bubble-user-text: #ffffff;
+  --synap-warn: #f59e0b;
+
+  --synap-card-hover-shadow: 0 6px 20px rgba(15, 23, 42, 0.1);
+  --synap-auth-bg: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 40%, #ede9fe 100%);
+
+  --synap-mobile-header-h: 56px;
+  --synap-bottom-nav-h: 64px;
+}
+
+.app-dark {
+  color-scheme: dark;
+
+  /* Zinc, to match PrimeNG Aura's dark surfaces (cards, inputs). */
+  --synap-page-bg: #09090b;
+  --synap-text: #e4e4e7;
+  --synap-code-bg: #27272a;
+
+  --synap-sidebar-bg: linear-gradient(160deg, #0f0c29 0%, #1e1b4b 100%);
+  --synap-sidebar-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+
+  --synap-mobile-bar-bg: rgba(24, 24, 27, 0.92);
+  --synap-mobile-bar-border: #27272a;
+  --synap-mobile-nav-text: #a1a1aa;
+  --synap-mobile-nav-active: #a5b4fc;
+
+  --synap-bubble-user-bg: #4f46e5;
+
+  --synap-card-hover-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --synap-auth-bg: linear-gradient(135deg, #09090b 0%, #1e1b4b 60%, #2e1065 100%);
+}
+
 html, body {
   margin: 0;
   padding: 0;
   height: 100%;
   font-family: var(--p-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
-  background-color: var(--p-surface-ground, #f8f9fa);
-  color: var(--p-text-color, #495057);
+  background-color: var(--synap-page-bg);
+  color: var(--synap-text);
+}
+
+/* iOS zooms into any focused input under 16px - keep phones at 16px. */
+@media (max-width: 767px) {
+  input, textarea, select, .p-inputtext, .p-select-label {
+    font-size: 16px !important;
+  }
 }
 
 /* Hide PrimeNG unlicensed banner — host element is in the DOM, shadow root is closed */
@@ -33,28 +97,60 @@ html, body {
   color: var(--p-text-color);
 }
 
+/* Empty states shared by notes and assistant */
+.empty-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--p-text-muted-color);
+
+  > i {
+    font-size: 2rem;
+    color: var(--p-primary-color);
+    opacity: 0.8;
+  }
+
+  h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--p-text-color);
+  }
+
+  p {
+    margin: 0;
+    max-width: 360px;
+    line-height: 1.5;
+    font-size: 0.9rem;
+  }
+}
+
 /* Markdown rendered content */
 .markdown-body {
   line-height: 1.6;
 
   pre {
-    background: var(--p-surface-100, #f3f4f6);
+    background: var(--synap-code-bg);
     border-radius: var(--p-border-radius, 6px);
     padding: 1rem;
     overflow-x: auto;
   }
 
   code:not(pre code) {
-    background: var(--p-surface-100, #f3f4f6);
+    background: var(--synap-code-bg);
     padding: 0.2em 0.4em;
     border-radius: 3px;
     font-size: 0.9em;
   }
 
   blockquote {
-    border-left: 3px solid var(--p-primary-color, #6366f1);
+    border-left: 3px solid var(--p-primary-color);
     margin: 0;
     padding-left: 1rem;
-    color: var(--p-text-muted-color, #6c757d);
+    color: var(--p-text-muted-color);
   }
+
+  img { max-width: 100%; }
 }

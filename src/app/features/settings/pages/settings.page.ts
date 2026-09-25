@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, ElementRef, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { ConfirmationService, MessageService } from 'primeng/api';
+import { ConfirmationService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { MessageModule } from 'primeng/message';
@@ -11,8 +11,12 @@ import { SelectModule } from 'primeng/select';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TagModule } from 'primeng/tag';
 import { InputTextModule } from 'primeng/inputtext';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { AuthService } from '../../../core/services/api/auth.service';
 import { ApiTokenStatus } from '../../../core/models';
+import { AuthStore } from '../../../core/stores/auth.store';
+import { ThemePreference, ThemeService } from '../../../core/services/theme.service';
+import { NotificationService } from '../../../core/services/notification.service';
 import { SettingsStore } from '../store/settings.store';
 
 const GROQ_KEYS_URL = 'https://console.groq.com/keys';
@@ -38,6 +42,7 @@ interface ModelOption {
     SkeletonModule,
     TagModule,
     InputTextModule,
+    SelectButtonModule,
   ],
   styles: [`
     :host { display: block; max-width: 760px; }
@@ -86,9 +91,9 @@ interface ModelOption {
       flex-wrap: wrap;
       padding: 0.75rem 1rem;
       margin-bottom: 1rem;
-      border: 1px solid var(--p-content-border-color, var(--p-surface-200));
+      border: 1px solid var(--p-content-border-color);
       border-radius: var(--p-border-radius, 6px);
-      background: var(--p-surface-50);
+      background: var(--synap-page-bg);
 
       code { font-size: 0.9rem; }
       .muted { color: var(--p-text-muted-color); font-size: 0.8rem; }
@@ -125,10 +130,13 @@ interface ModelOption {
     .account-row {
       display: flex;
       justify-content: space-between;
-      gap: 1rem;
+      flex-wrap: wrap;
+      gap: 0.25rem 1rem;
       font-size: 0.925rem;
+      margin-bottom: 1.25rem;
 
       .muted { color: var(--p-text-muted-color); }
+      .email { overflow-wrap: anywhere; }
     }
 
     .inline-error { margin-top: 0.5rem; }
@@ -285,6 +293,29 @@ interface ModelOption {
           }
         </p-card>
 
+        <!-- ─── Apariencia ─────────────────────────────────────────── -->
+        <p-card id="appearance">
+          <div class="section-header">
+            <i class="pi pi-palette"></i>
+            <h3>Apariencia</h3>
+          </div>
+          <p class="section-description">Se guarda en este dispositivo. "Sistema" sigue el modo claro u oscuro de tu dispositivo.</p>
+          <p-selectbutton
+            [options]="themeOptions"
+            [ngModel]="themeService.preference()"
+            (ngModelChange)="themeService.setPreference($event)"
+            optionLabel="label"
+            optionValue="value"
+            [allowEmpty]="false"
+            aria-label="Tema"
+          >
+            <ng-template #item let-option>
+              <i [class]="option.icon"></i>
+              <span>{{ option.label }}</span>
+            </ng-template>
+          </p-selectbutton>
+        </p-card>
+
         <!-- ─── Cuenta ──────────────────────────────────────────────── -->
         <p-card id="account">
           <div class="section-header">
@@ -293,8 +324,9 @@ interface ModelOption {
           </div>
           <div class="account-row">
             <span class="muted">Correo electrónico</span>
-            <span>{{ settings.email }}</span>
+            <span class="email">{{ settings.email }}</span>
           </div>
+          <p-button label="Cerrar sesión" icon="pi pi-sign-out" severity="secondary" [outlined]="true" (onClick)="logout()" />
         </p-card>
       </div>
     }
@@ -302,14 +334,22 @@ interface ModelOption {
 })
 export class SettingsPage implements OnInit {
   protected readonly settingsStore = inject(SettingsStore);
+  protected readonly themeService = inject(ThemeService);
+  private readonly authStore = inject(AuthStore);
+  private readonly router = inject(Router);
   private readonly authService = inject(AuthService);
   private readonly confirmationService = inject(ConfirmationService);
-  private readonly messageService = inject(MessageService);
+  private readonly notifications = inject(NotificationService);
   private readonly route = inject(ActivatedRoute);
-  private readonly host = inject(ElementRef<HTMLElement>);
+  private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly groqKeysUrl = GROQ_KEYS_URL;
+  protected readonly themeOptions: { label: string; value: ThemePreference; icon: string }[] = [
+    { label: 'Claro', value: 'light', icon: 'pi pi-sun' },
+    { label: 'Oscuro', value: 'dark', icon: 'pi pi-moon' },
+    { label: 'Sistema', value: 'system', icon: 'pi pi-desktop' },
+  ];
   protected readonly iosDocsUrl = IOS_SHORTCUT_DOCS_URL;
 
   protected readonly keyForm = this.formBuilder.nonNullable.group({
@@ -378,7 +418,7 @@ export class SettingsPage implements OnInit {
       await this.settingsStore.saveGroqKey(this.keyForm.getRawValue().apiKey.trim());
       this.keyForm.reset();
       this.editingKey.set(false);
-      this.messageService.add({ severity: 'success', summary: 'API key guardada', detail: 'Ya puedes usar el asistente.' });
+      this.notifications.success('API key guardada', 'Ya puedes usar el asistente.');
     } catch (err) {
       this.keyError.set((err as Error).message);
     } finally {
@@ -403,9 +443,9 @@ export class SettingsPage implements OnInit {
     this.pendingAction.set('delete');
     try {
       await this.settingsStore.deleteGroqKey();
-      this.messageService.add({ severity: 'success', summary: 'API key eliminada' });
+      this.notifications.success('API key eliminada');
     } catch (err) {
-      this.messageService.add({ severity: 'error', summary: 'Error', detail: (err as Error).message });
+      this.notifications.error('Error', (err as Error).message);
     } finally {
       this.pendingAction.set(null);
     }
@@ -416,9 +456,9 @@ export class SettingsPage implements OnInit {
 
     try {
       await this.settingsStore.setModel(model);
-      this.messageService.add({ severity: 'success', summary: 'Modelo actualizado', detail: model ?? 'Modelo por defecto' });
+      this.notifications.success('Modelo actualizado', model ?? 'Modelo por defecto');
     } catch (err) {
-      this.messageService.add({ severity: 'error', summary: 'Error', detail: (err as Error).message });
+      this.notifications.error('Error', (err as Error).message);
     }
   }
 
@@ -445,7 +485,7 @@ export class SettingsPage implements OnInit {
       this.revealedToken.set(await firstValueFrom(this.authService.generateApiToken()));
       await this.loadTokenStatus();
     } catch {
-      this.messageService.add({ severity: 'error', summary: 'Error', detail: 'No se pudo generar el token.' });
+      this.notifications.error('Error', 'No se pudo generar el token.');
     } finally {
       this.generatingToken.set(false);
     }
@@ -457,9 +497,9 @@ export class SettingsPage implements OnInit {
 
     try {
       await navigator.clipboard.writeText(token);
-      this.messageService.add({ severity: 'success', summary: 'Token copiado' });
+      this.notifications.success('Token copiado');
     } catch {
-      this.messageService.add({ severity: 'warn', summary: 'No se pudo copiar', detail: 'Selecciónalo y cópialo manualmente.' });
+      this.notifications.warn('No se pudo copiar', 'Selecciónalo y cópialo manualmente.');
     }
   }
 
@@ -468,6 +508,11 @@ export class SettingsPage implements OnInit {
    * "timestamp without time zone" column with no offset - which the browser would otherwise
    * read as local time (hours off). Timestamps without an explicit offset are treated as UTC.
    */
+  protected logout(): void {
+    this.authStore.logout();
+    void this.router.navigate(['/auth/login']);
+  }
+
   protected formatDate(value: string): string {
     const hasOffset = /(Z|[+-]\d{2}:?\d{2})$/.test(value);
     return new Date(hasOffset ? value : `${value}Z`).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });

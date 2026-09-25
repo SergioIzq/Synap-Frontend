@@ -5,6 +5,8 @@ import { InputGroupModule } from 'primeng/inputgroup';
 import { InputTextModule } from 'primeng/inputtext';
 import { ButtonModule } from 'primeng/button';
 import { MessageModule } from 'primeng/message';
+import { ChipModule } from 'primeng/chip';
+import { NotificationService } from '../../../core/services/notification.service';
 import { MarkdownService } from '../../../core/services/markdown.service';
 import { AssistantAnswer, SETTINGS_FIXABLE_STATUSES } from '../../../core/models';
 import { SettingsStore } from '../../settings/store/settings.store';
@@ -21,15 +23,39 @@ import { AssistantStore } from '../store/assistant.store';
     InputTextModule,
     ButtonModule,
     MessageModule,
+    ChipModule,
   ],
   styles: [`
-    h2 { margin: 0 0 1.5rem; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
-
-    .empty-hint {
-      color: var(--p-text-muted-color);
-      font-size: 0.95rem;
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
       margin-bottom: 1.5rem;
+
+      h2 { margin: 0; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
     }
+
+    .suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .sources {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.6rem;
+
+      a { text-decoration: none; }
+      ::ng-deep .p-chip { cursor: pointer; font-size: 0.8rem; }
+    }
+
+    .answer-actions { display: flex; justify-content: flex-end; margin-top: 0.25rem; }
 
     .chat-list {
       display: flex;
@@ -54,8 +80,8 @@ import { AssistantStore } from '../store/assistant.store';
     .msg-user {
       align-self: flex-end;
       max-width: 75%;
-      background: #6366f1;
-      color: white;
+      background: var(--synap-bubble-user-bg);
+      color: var(--synap-bubble-user-text);
       border-radius: 16px 16px 4px 16px;
       padding: 0.625rem 1rem;
       font-size: 0.925rem;
@@ -122,8 +148,8 @@ import { AssistantStore } from '../store/assistant.store';
 
     /* Answers that are a problem (no key, invalid key, quota, outage) rather than content */
     .msg-synap.is-problem {
-      background: color-mix(in srgb, var(--p-orange-500, #f59e0b) 8%, var(--p-content-background));
-      border-color: color-mix(in srgb, var(--p-orange-500, #f59e0b) 35%, transparent);
+      background: color-mix(in srgb, var(--synap-warn) 8%, var(--p-content-background));
+      border-color: color-mix(in srgb, var(--synap-warn) 35%, transparent);
     }
 
     .problem-body {
@@ -131,7 +157,7 @@ import { AssistantStore } from '../store/assistant.store';
       gap: 0.6rem;
       align-items: flex-start;
 
-      > i { color: var(--p-orange-500, #f59e0b); margin-top: 0.2rem; }
+      > i { color: var(--synap-warn); margin-top: 0.2rem; }
     }
 
     .problem-action { margin-top: 0.6rem; }
@@ -151,10 +177,24 @@ import { AssistantStore } from '../store/assistant.store';
     }
   `],
   template: `
-    <h2>Pregunta a Synap</h2>
+    <div class="page-header">
+      <h2>Pregunta a Synap</h2>
+      @if (assistantStore.messages().length > 0) {
+        <p-button
+          label="Nueva conversación"
+          icon="pi pi-plus"
+          size="small"
+          severity="secondary"
+          [text]="true"
+          [disabled]="isPending()"
+          (onClick)="assistantStore.clear()"
+        />
+      }
+    </div>
 
     @if (needsKey()) {
-      <p-message severity="warn" styleClass="key-warning w-full">
+      <div class="key-warning">
+      <p-message severity="warn" styleClass="w-full">
         <div class="key-warning-body">
           <div>
             <strong>Configura tu API key de Groq para usar el asistente</strong>
@@ -166,10 +206,20 @@ import { AssistantStore } from '../store/assistant.store';
           <p-button label="Configurar API key" icon="pi pi-key" size="small" routerLink="/app/settings" fragment="ai" />
         </div>
       </p-message>
+      </div>
     }
 
     @if (assistantStore.messages().length === 0 && !needsKey()) {
-      <p class="empty-hint">Pregunta sobre cualquier cosa que hayas guardado — "¿Cómo resolví ese error la última vez?"</p>
+      <div class="empty-block">
+        <i class="pi pi-sparkles"></i>
+        <h3>Pregunta sobre lo que has guardado</h3>
+        <p>Synap responde a partir de tus propias notas y te dice en cuáles se ha basado.</p>
+        <div class="suggestions">
+          @for (suggestion of suggestions; track suggestion) {
+            <p-button [label]="suggestion" size="small" severity="secondary" [outlined]="true" [rounded]="true" (onClick)="askSuggestion(suggestion)" />
+          }
+        </div>
+      </div>
     }
 
     <div class="chat-list" #chatList>
@@ -206,11 +256,33 @@ import { AssistantStore } from '../store/assistant.store';
                 <!-- Markdown rendered via MarkdownService; content is from our own trusted backend -->
                 <div class="markdown-body" [innerHTML]="renderMarkdown(message.answer.answer)"></div>
                 @if (message.answer.grounded) {
-                  <p class="grounded-note">
-                    <i class="pi pi-book"></i>
-                    Basado en {{ message.answer.sourceNoteIds.length }} de tus notas.
-                  </p>
+                  @if (message.answer.sources?.length) {
+                    <div class="sources">
+                      <span class="grounded-note" style="margin: 0">Fuentes:</span>
+                      @for (source of message.answer.sources; track source.id) {
+                        <a [routerLink]="['/app/notes', source.id]" [attr.aria-label]="'Abrir nota ' + source.title">
+                          <p-chip [label]="source.title" icon="pi pi-file" />
+                        </a>
+                      }
+                    </div>
+                  } @else {
+                    <p class="grounded-note">
+                      <i class="pi pi-book"></i>
+                      Basado en {{ message.answer.sourceNoteIds.length }} de tus notas.
+                    </p>
+                  }
                 }
+                <div class="answer-actions">
+                  <p-button
+                    icon="pi pi-copy"
+                    size="small"
+                    severity="secondary"
+                    [text]="true"
+                    [rounded]="true"
+                    ariaLabel="Copiar respuesta"
+                    (onClick)="copyAnswer(message.answer.answer)"
+                  />
+                </div>
               }
             </div>
           </div>
@@ -232,7 +304,7 @@ import { AssistantStore } from '../store/assistant.store';
           icon="pi pi-send"
           label="Preguntar"
           [disabled]="!questionControl.value?.trim() || needsKey() || !settingsStore.loaded()"
-          [loading]="!!assistantStore.messages()[assistantStore.messages().length - 1]?.pending"
+          [loading]="isPending()"
           (onClick)="submit()"
         />
       </p-inputgroup>
@@ -244,6 +316,15 @@ export class AssistantPage implements OnInit {
   protected readonly settingsStore = inject(SettingsStore);
   private readonly markdownService = inject(MarkdownService);
   private readonly formBuilder = inject(FormBuilder);
+  private readonly notifications = inject(NotificationService);
+
+  protected readonly suggestions = [
+    '¿Cómo resolví el último error que anoté?',
+    '¿Qué enlaces guardé sobre Angular?',
+    'Resume mis notas de esta semana',
+  ];
+
+  protected readonly isPending = computed(() => !!this.assistantStore.messages().at(-1)?.pending);
 
   @ViewChild('chatList') private chatList?: ElementRef<HTMLElement>;
 
@@ -279,6 +360,20 @@ export class AssistantPage implements OnInit {
   // toSafeHtml already calls bypassSecurityTrustHtml; content is from our own trusted backend
   protected renderMarkdown(text: string) {
     return this.markdownService.toSafeHtml(text);
+  }
+
+  protected askSuggestion(suggestion: string): void {
+    this.questionControl.setValue(suggestion);
+    void this.submit();
+  }
+
+  async copyAnswer(text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+      this.notifications.success('Copiado');
+    } catch {
+      this.notifications.warn('No se pudo copiar', 'Selecciona el texto y cópialo manualmente.');
+    }
   }
 
   async submit(): Promise<void> {
