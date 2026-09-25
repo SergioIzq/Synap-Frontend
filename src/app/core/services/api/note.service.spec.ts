@@ -41,4 +41,14 @@ describe('NoteService', () => {
     http.expectOne(`${environment.apiUrl}/tags`).flush({ value: ['a', 'b'] });
     expect(await tags).toEqual(['a', 'b']);
   });
+
+  it('create() sends type, title, content and tags in one request', async () => {
+    const promise = firstValueFrom(
+      service.create({ type: null, title: 'Título', content: 'https://example.com', tags: ['a', 'b'] }),
+    );
+    const req = http.expectOne({ method: 'POST', url: `${environment.apiUrl}/notes` });
+    expect(req.request.body).toEqual({ type: null, title: 'Título', content: 'https://example.com', tags: ['a', 'b'] });
+    req.flush({ value: 'nueva-id' });
+    expect(await promise).toBe('nueva-id');
+  });
 });

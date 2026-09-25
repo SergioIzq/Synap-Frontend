@@ -61,7 +61,7 @@ import { AuthStore } from '../../../core/stores/auth.store';
     }
   `],
   template: `
-    <p-card header="Iniciar sesión en Synap">
+    <p-card header="Iniciar sesión">
       <form [formGroup]="form" (ngSubmit)="submit()">
 
         <div class="field">
@@ -86,6 +86,7 @@ import { AuthStore } from '../../../core/stores/auth.store';
             autocomplete="current-password"
             placeholder="Tu contraseña"
             styleClass="w-full"
+            [fluid]="true"
           />
           <a class="forgot-link" routerLink="/auth/forgot-password">¿Olvidaste tu contraseña?</a>
         </div>

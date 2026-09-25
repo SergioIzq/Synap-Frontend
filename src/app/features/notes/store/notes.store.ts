@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, firstValueFrom } from 'rxjs';
+import { Observable, firstValueFrom, from } from 'rxjs';
 import { NoteService } from '../../../core/services/api/note.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { apiErrorMessage, isHandledGlobally } from '../../../core/utils/http-errors';
@@ -127,6 +127,22 @@ export class NotesStore {
   async update(id: string, request: UpdateNoteRequest): Promise<void> {
     await this.mutate(this.noteService.update(id, request), 'Nota actualizada', 'No se pudo actualizar la nota.');
     await this.reloadNote(id);
+  }
+
+  /**
+   * Saves title/content and attaches any new tags as one user action - a single toast, then
+   * the note and the tag list are refreshed once.
+   */
+  async updateWithTags(id: string, request: UpdateNoteRequest, newTags: string[]): Promise<void> {
+    const saveAll = async () => {
+      await firstValueFrom(this.noteService.update(id, request));
+      for (const tag of newTags) {
+        await firstValueFrom(this.noteService.addTag(id, tag));
+      }
+    };
+    await this.mutate(from(saveAll()), 'Nota actualizada', 'No se pudo guardar la nota.');
+    await this.reloadNote(id);
+    if (newTags.length > 0) void this.loadTags();
   }
 
   async delete(id: string): Promise<void> {

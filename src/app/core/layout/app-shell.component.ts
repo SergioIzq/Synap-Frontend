@@ -1,9 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { NgTemplateOutlet } from '@angular/common';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { ChangeDetectionStrategy, Component, HostListener, inject } from '@angular/core';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { filter, map } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 import { AuthStore } from '../stores/auth.store';
 import { routeAnimations } from '../animations/route.animations';
+import { SynapLogoComponent } from '../../shared/components/synap-logo.component';
 
 interface NavItem {
   path: string;
@@ -20,7 +22,7 @@ interface NavItem {
   selector: 'app-shell',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [NgTemplateOutlet, RouterOutlet, RouterLink, RouterLinkActive, ButtonModule],
+  imports: [SynapLogoComponent, RouterOutlet, RouterLink, RouterLinkActive, ButtonModule],
   animations: [routeAnimations],
   styles: [`
     :host {
@@ -138,21 +140,10 @@ interface NavItem {
     }
   `],
   template: `
-    <ng-template #logo>
-      <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <line x1="16" y1="16" x2="16"    y2="6"  stroke="rgba(255,255,255,0.38)" stroke-width="1.75" stroke-linecap="round"/>
-        <line x1="16" y1="16" x2="24.66" y2="21" stroke="rgba(255,255,255,0.38)" stroke-width="1.75" stroke-linecap="round"/>
-        <line x1="16" y1="16" x2="7.34"  y2="21" stroke="rgba(255,255,255,0.38)" stroke-width="1.75" stroke-linecap="round"/>
-        <circle cx="16"    cy="6"  r="2.5" fill="rgba(255,255,255,0.65)"/>
-        <circle cx="24.66" cy="21" r="2.5" fill="rgba(255,255,255,0.65)"/>
-        <circle cx="7.34"  cy="21" r="2.5" fill="rgba(255,255,255,0.65)"/>
-        <circle cx="16"    cy="16" r="5"   fill="white"/>
-      </svg>
-    </ng-template>
 
     <aside class="sidebar">
       <div class="brand">
-        <ng-container [ngTemplateOutlet]="logo" />
+        <app-synap-logo />
         <span>Synap</span>
       </div>
 
@@ -183,14 +174,14 @@ interface NavItem {
 
     <header class="mobile-header">
       <div class="brand">
-        <ng-container [ngTemplateOutlet]="logo" />
+        <app-synap-logo />
         <span>Synap</span>
       </div>
     </header>
 
     <main class="content">
-      <div class="route-wrapper" [@routeAnimation]="routeState">
-        <router-outlet (activate)="onActivate()" />
+      <div class="route-wrapper" [@routeAnimation]="routeKey()">
+        <router-outlet />
       </div>
     </main>
 
@@ -215,14 +206,41 @@ export class AppShellComponent {
   protected readonly settingsNav: NavItem = { path: '/app/settings', label: 'Configuración', icon: 'pi pi-cog' };
   protected readonly allNav: NavItem[] = [...this.mainNav, this.settingsNav];
 
-  protected routeState = 0;
+  /**
+   * Animation state = the current path, updated on NavigationEnd (outside change detection).
+   * Reading it from the outlet during the check - or bumping a counter in (activate) - changed
+   * the bound value mid-check on first load (NG0100 in dev mode). Starts at the navigation in
+   * progress so the first page doesn't animate.
+   */
+  protected readonly routeKey = toSignal(
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map((event) => pathOf(event.urlAfterRedirects)),
+    ),
+    { initialValue: pathOf(this.router.getCurrentNavigation()?.finalUrl?.toString() ?? this.router.url) },
+  );
 
-  protected onActivate(): void {
-    this.routeState++;
+  /**
+   * "n" opens the note composer from any page (specs/web-experience "Keyboard shortcut to
+   * create a note") - never while the user is typing in a field.
+   */
+  @HostListener('document:keydown', ['$event'])
+  protected onKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'n' || event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
+
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"]')) return;
+
+    event.preventDefault();
+    void this.router.navigate(['/app/notes'], { queryParams: { compose: 1 } });
   }
 
   logout(): void {
     this.authStore.logout();
     void this.router.navigate(['/auth/login']);
   }
+}
+
+function pathOf(url: string): string {
+  return url.split(/[?#]/)[0];
 }

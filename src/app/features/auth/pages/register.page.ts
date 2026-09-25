@@ -53,7 +53,7 @@ import { AuthStore } from '../../../core/stores/auth.store';
     }
   `],
   template: `
-    <p-card header="Crea tu cuenta de Synap">
+    <p-card header="Crear cuenta">
       @if (registered()) {
         <p-message severity="success" styleClass="w-full">¡Cuenta creada!</p-message>
         <div class="footer-link" style="margin-top: 1rem">
@@ -83,6 +83,7 @@ import { AuthStore } from '../../../core/stores/auth.store';
               autocomplete="new-password"
               placeholder="Al menos 8 caracteres"
               styleClass="w-full"
+            [fluid]="true"
             />
           </div>
 

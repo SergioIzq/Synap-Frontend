@@ -14,9 +14,11 @@ export interface Note {
 }
 
 export interface CreateNoteRequest {
-  type: NoteType;
+  /** Null lets the API infer it: a lone URL becomes a bookmark, anything else text. */
+  type: NoteType | null;
   title: string | null;
   content: string;
+  tags?: string[];
 }
 
 export interface UpdateNoteRequest {

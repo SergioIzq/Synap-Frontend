@@ -27,6 +27,9 @@ import { SelectButtonModule } from 'primeng/selectbutton';
 import { NoteType } from '../../../core/models';
 import { NotesStore } from '../store/notes.store';
 import { NoteCardComponent } from '../components/note-card.component';
+import { NoteComposerComponent } from '../components/note-composer.component';
+import { ActivatedRoute, Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 /** How far before the end of the list the next page starts loading. */
 const PREFETCH_PX = 400;
@@ -59,20 +62,16 @@ const listAnimation = trigger('listAnimation', [
     SelectButtonModule,
     FormsModule,
     NoteCardComponent,
+    NoteComposerComponent,
   ],
   styles: [`
     h2 { margin: 0 0 1.25rem; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
 
-    .capture-form,
     .search-row {
       display: flex;
       gap: 0.5rem;
       margin-bottom: 1.25rem;
       align-items: center;
-    }
-
-    .capture-form {
-      ::ng-deep input { flex: 1; }
     }
 
     .search-row {
@@ -112,27 +111,8 @@ const listAnimation = trigger('listAnimation', [
   template: `
     <h2>Tus notas <small class="shortcut-hint" style="font-weight: 400; font-size: 0.75rem; color: var(--p-text-muted-color)">· <kbd>/</kbd> para buscar</small></h2>
 
-    <!-- Quick capture (specs/knowledge-vault: primary capture surface, always visible) -->
-    <form class="capture-form" [formGroup]="quickCaptureForm" (ngSubmit)="submitQuickCapture()">
-      <p-inputgroup>
-        <input
-          pInputText
-          formControlName="content"
-          placeholder="Anota un pensamiento, un fragmento, un enlace…"
-          autocomplete="off"
-          aria-label="Nueva nota"
-          (keydown.control.enter)="submitQuickCapture()"
-          (keydown.meta.enter)="submitQuickCapture()"
-        />
-        <p-button
-          type="submit"
-          icon="pi pi-plus"
-          label="Añadir"
-          [loading]="notesStore.loading()"
-          [disabled]="!quickCaptureForm.getRawValue().content.trim()"
-        />
-      </p-inputgroup>
-    </form>
+    <!-- Composer (specs/knowledge-vault "Capture a note": title, tags and type in one step) -->
+    <app-note-composer />
 
     <!-- Search / filter -->
     <div class="search-row">
@@ -229,11 +209,13 @@ export class NotesListPage implements OnInit, AfterViewInit {
   protected readonly notesStore = inject(NotesStore);
   private readonly formBuilder = inject(FormBuilder);
 
-  protected readonly quickCaptureForm = this.formBuilder.nonNullable.group({ content: [''] });
   protected readonly searchForm = this.formBuilder.nonNullable.group({ term: [''], tag: [''] });
 
   @ViewChild('searchInput') private searchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('sentinel') private sentinel?: ElementRef<HTMLElement>;
+  @ViewChild(NoteComposerComponent) private composer?: NoteComposerComponent;
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
   private observer?: IntersectionObserver;
@@ -253,7 +235,6 @@ export class NotesListPage implements OnInit, AfterViewInit {
     { label: 'Código', value: 'codeSnippet' },
     { label: 'Enlaces', value: 'bookmark' },
   ];
-  private readonly host: ElementRef<HTMLElement> = inject(ElementRef);
 
   protected readonly hasFilters = computed(
     () => !!this.notesStore.searchTerm() || !!this.notesStore.tag() || !!this.notesStore.type(),
@@ -282,7 +263,7 @@ export class NotesListPage implements OnInit, AfterViewInit {
   }
 
   protected focusCapture(): void {
-    this.host.nativeElement.querySelector<HTMLInputElement>('.capture-form input')?.focus();
+    this.composer?.open();
   }
 
   protected tagOptions() {
@@ -298,6 +279,14 @@ export class NotesListPage implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
+    // "n" shortcut / links land here with ?compose=1: open the composer, then drop the flag so
+    // a reload or Back doesn't reopen it.
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      if (params.get('compose') !== '1') return;
+      this.composer?.open();
+      void this.router.navigate([], { queryParams: { compose: null }, queryParamsHandling: 'merge', replaceUrl: true });
+    });
+
     if (!this.sentinel || typeof IntersectionObserver === 'undefined') return;
 
     // Starts loading a little before the end is actually reached.
@@ -320,18 +309,6 @@ export class NotesListPage implements OnInit, AfterViewInit {
       },
       { injector: this.injector },
     );
-  }
-
-  async submitQuickCapture(): Promise<void> {
-    const content = this.quickCaptureForm.getRawValue().content.trim();
-    if (!content) return;
-
-    try {
-      await this.notesStore.create({ type: 'text', title: null, content });
-      this.quickCaptureForm.reset({ content: '' });
-    } catch {
-      // Failure already reported as a toast by NotesStore
-    }
   }
 
   submitSearch(): void {

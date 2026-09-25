@@ -1,111 +1,162 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { CardModule } from 'primeng/card';
 import { TagModule } from 'primeng/tag';
-import { Note } from '../../../core/models';
+import { Note, NoteType } from '../../../core/models';
+import { formatDateTime } from '../../../core/utils/dates';
+import { RelativeTimePipe } from '../../../shared/pipes/relative-time.pipe';
 
+const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
+  text: { icon: 'pi pi-align-left', label: 'Texto' },
+  codeSnippet: { icon: 'pi pi-code', label: 'Código' },
+  bookmark: { icon: 'pi pi-link', label: 'Enlace' },
+};
+
+/** specs/web-experience "Note summaries show type and age". */
 @Component({
   selector: 'app-note-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [RouterLink, CardModule, TagModule],
+  imports: [RouterLink, TagModule, RelativeTimePipe],
   styles: [`
     a {
       display: block;
-      text-decoration: none;
-      color: inherit;
       margin-bottom: 0.75rem;
-      transition: transform 0.18s ease, box-shadow 0.18s ease;
+      padding: 0.9rem 1rem;
+      border: 1px solid var(--p-content-border-color);
+      border-radius: var(--p-border-radius-lg, 10px);
+      background: var(--p-content-background);
+      color: inherit;
+      text-decoration: none;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 
-      &:hover {
+      &:hover, &:focus-visible {
         transform: translateY(-2px);
-
-        ::ng-deep .p-card {
-          box-shadow: var(--synap-card-hover-shadow);
-        }
+        box-shadow: var(--synap-card-hover-shadow);
+        border-color: color-mix(in srgb, var(--p-primary-color) 35%, var(--p-content-border-color));
       }
     }
 
-    .note-image {
-      max-width: 100%;
-      max-height: 140px;
-      object-fit: cover;
-      border-radius: 4px;
-      margin-bottom: 0.5rem;
-    }
-
-    .note-code {
-      white-space: pre-wrap;
-      font-family: monospace;
-      font-size: 0.85rem;
-      max-height: 4.5rem;
-      overflow: hidden;
-      background: var(--synap-code-bg);
-      border-radius: 4px;
-      padding: 0.5rem;
-    }
-
-    .note-title {
-      font-weight: 600;
-      margin: 0 0 0.25rem;
-    }
-
-    .note-preview {
-      margin: 0;
-      color: var(--p-text-muted-color);
-      font-size: 0.9rem;
-    }
-
-    .note-tags {
-      margin-top: 0.5rem;
+    .meta {
       display: flex;
-      gap: 0.4rem;
-      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+      margin-bottom: 0.4rem;
+      font-size: 0.75rem;
+      color: var(--p-text-muted-color);
+
+      .type { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--p-primary-color); font-weight: 600; }
+      .age { margin-left: auto; white-space: nowrap; }
     }
+
+    .title { font-weight: 650; margin: 0 0 0.25rem; line-height: 1.35; }
+    .preview { margin: 0; color: var(--p-text-muted-color); font-size: 0.9rem; line-height: 1.5; overflow-wrap: anywhere; }
+
+    .code {
+      margin: 0;
+      padding: 0.55rem 0.7rem;
+      max-height: 5.2rem;
+      overflow: hidden;
+      white-space: pre-wrap;
+      font-family: var(--synap-font-mono, monospace);
+      font-size: 0.8rem;
+      background: var(--synap-code-bg);
+      border-radius: 6px;
+    }
+
+    .bookmark {
+      display: flex;
+      gap: 0.9rem;
+      align-items: flex-start;
+
+      .text { flex: 1; min-width: 0; }
+      .domain { font-size: 0.75rem; color: var(--p-primary-color); overflow-wrap: anywhere; }
+      img { width: 88px; height: 64px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+    }
+
+    .tags { margin-top: 0.6rem; display: flex; gap: 0.35rem; flex-wrap: wrap; }
   `],
   template: `
-    <a [routerLink]="['/app/notes', note.id]">
-      <p-card>
-        @switch (note.type) {
-          @case ('bookmark') {
-            @if (note.metadataImageUrl) {
-              <img [src]="note.metadataImageUrl" alt="" class="note-image" />
-            }
-            <p class="note-title">{{ note.metadataTitle ?? note.content }}</p>
-            @if (note.metadataDescription) {
-              <p class="note-preview">{{ note.metadataDescription }}</p>
-            }
-            <small>{{ note.content }}</small>
-          }
-          @case ('codeSnippet') {
-            @if (note.title) {
-              <p class="note-title">{{ note.title }}</p>
-            }
-            <pre class="note-code">{{ preview(note.content) }}</pre>
-          }
-          @default {
-            @if (note.title) {
-              <p class="note-title">{{ note.title }}</p>
-            }
-            <p class="note-preview">{{ preview(note.content) }}</p>
-          }
-        }
+    <a [routerLink]="['/app/notes', note.id]" [attr.aria-label]="typeMeta.label + ': ' + heading()">
+      <div class="meta">
+        <span class="type"><i [class]="typeMeta.icon"></i>{{ typeMeta.label }}</span>
+        <span class="age" [title]="fullDate()">{{ note.createdAt | relativeTime }}</span>
+      </div>
 
-        @if (note.tags.length > 0) {
-          <div class="note-tags">
-            @for (tag of note.tags; track tag) {
-              <p-tag [value]="'#' + tag" severity="secondary" />
+      @switch (note.type) {
+        @case ('bookmark') {
+          <div class="bookmark">
+            <div class="text">
+              <div class="domain">{{ domain() }}</div>
+              <p class="title">{{ note.metadataTitle ?? note.title ?? note.content }}</p>
+              @if (note.metadataDescription) {
+                <p class="preview">{{ preview(note.metadataDescription, 160) }}</p>
+              }
+            </div>
+            @if (note.metadataImageUrl) {
+              <img [src]="note.metadataImageUrl" alt="" loading="lazy" />
             }
           </div>
         }
-      </p-card>
+        @case ('codeSnippet') {
+          @if (note.title) {
+            <p class="title">{{ note.title }}</p>
+          }
+          <pre class="code">{{ preview(note.content, 300) }}</pre>
+        }
+        @default {
+          @if (note.title) {
+            <p class="title">{{ note.title }}</p>
+          }
+          <p class="preview">{{ preview(plainText(note.content), 220) }}</p>
+        }
+      }
+
+      @if (note.tags.length > 0) {
+        <div class="tags">
+          @for (tag of note.tags; track tag) {
+            <p-tag [value]="'#' + tag" severity="secondary" />
+          }
+        </div>
+      }
     </a>
   `,
 })
 export class NoteCardComponent {
   @Input({ required: true }) note!: Note;
 
-  preview(content: string): string {
-    return content.length > 200 ? content.slice(0, 200) + '…' : content;
+  protected get typeMeta() {
+    return TYPE_META[this.note.type] ?? TYPE_META.text;
+  }
+
+  protected heading(): string {
+    return this.note.title ?? this.note.metadataTitle ?? this.preview(this.note.content, 60);
+  }
+
+  protected domain(): string {
+    try {
+      return new URL(this.note.content.trim()).hostname.replace(/^www\./, '');
+    } catch {
+      return '';
+    }
+  }
+
+  protected fullDate(): string {
+    return formatDateTime(this.note.createdAt);
+  }
+
+  /** Markdown markers out of a one-paragraph preview; the detail page renders the real thing. */
+  protected plainText(markdown: string): string {
+    return markdown
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+\.)\s+/gm, '')
+      .replace(/(\*\*|__|\*|_|~~|`)/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  protected preview(content: string, max: number): string {
+    return content.length > max ? content.slice(0, max).trimEnd() + '…' : content;
   }
 }

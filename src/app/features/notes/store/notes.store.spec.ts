@@ -137,4 +137,14 @@ describe('NotesStore (paging)', () => {
     expect(store.notes().map((n) => n.id)).toEqual(['b']);
     expect(store.totalCount()).toBe(2);
   });
+
+  it('updateWithTags() saves content and each new tag, then refreshes once', async () => {
+    await store.search();
+    await store.updateWithTags('a', { title: 'T', content: 'c' }, ['uno', 'dos']);
+
+    expect(service.update).toHaveBeenCalledWith('a', { title: 'T', content: 'c' });
+    expect(service.addTag).toHaveBeenCalledTimes(2);
+    expect(service.getById).toHaveBeenCalledWith('a');
+    expect(service.listTags).toHaveBeenCalled();
+  });
 });

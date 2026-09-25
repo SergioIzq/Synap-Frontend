@@ -17,6 +17,7 @@ import { ApiTokenStatus } from '../../../core/models';
 import { ThemePreference, ThemeService } from '../../../core/services/theme.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SettingsStore } from '../store/settings.store';
+import { formatDateTime } from '../../../core/utils/dates';
 import { AccountSettingsComponent } from '../components/account-settings.component';
 
 const GROQ_KEYS_URL = 'https://console.groq.com/keys';
@@ -47,6 +48,14 @@ interface ModelOption {
   ],
   styles: [`
     :host { display: block; max-width: 760px; }
+
+    /* specs/web-experience "Settings use the available width": two columns on laptops. */
+    @media (min-width: 1200px) {
+      :host { max-width: 1200px; }
+      .sections { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+    }
+
+    .column { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
 
     h2 { margin: 0 0 0.35rem; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
 
@@ -125,7 +134,7 @@ interface ModelOption {
       gap: 0.5rem;
       margin: 1rem 0 0.5rem;
 
-      input { flex: 1; font-family: var(--p-font-family-mono, monospace); font-size: 0.85rem; }
+      input { flex: 1; font-family: var(--synap-font-mono); font-size: 0.85rem; }
     }
 
 
@@ -145,6 +154,7 @@ interface ModelOption {
     } @else if (settingsStore.settings(); as settings) {
       <div class="sections">
         <!-- ─── Asistente IA ─────────────────────────────────────────── -->
+        <div class="column">
         <p-card id="ai">
           <div class="section-header">
             <i class="pi pi-sparkles"></i>
@@ -283,6 +293,9 @@ interface ModelOption {
           }
         </p-card>
 
+        </div>
+
+        <div class="column">
         <!-- ─── Apariencia ─────────────────────────────────────────── -->
         <p-card id="appearance">
           <div class="section-header">
@@ -314,6 +327,7 @@ interface ModelOption {
           </div>
           <app-account-settings [email]="settings.email" />
         </p-card>
+        </div>
       </div>
     }
   `,
@@ -487,14 +501,8 @@ export class SettingsPage implements OnInit {
     }
   }
 
-  /**
-   * Both dates shown here are stored with DateTime.UtcNow, but come back from a
-   * "timestamp without time zone" column with no offset - which the browser would otherwise
-   * read as local time (hours off). Timestamps without an explicit offset are treated as UTC.
-   */
   protected formatDate(value: string): string {
-    const hasOffset = /(Z|[+-]\d{2}:?\d{2})$/.test(value);
-    return new Date(hasOffset ? value : `${value}Z`).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
+    return formatDateTime(value);
   }
 
   private async loadTokenStatus(): Promise<void> {
