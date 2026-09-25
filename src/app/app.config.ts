@@ -9,6 +9,7 @@ import { definePreset } from '@primeuix/themes';
 
 import { routes } from './app.routes';
 import { ThemeService } from './core/services/theme.service';
+import { AppUpdateService } from './core/services/app-update.service';
 import { provideServiceWorker } from '@angular/service-worker';
 
 const SynapTheme = definePreset(Aura, {
@@ -43,6 +44,8 @@ export const appConfig: ApplicationConfig = {
     provideAnimationsAsync(),
     // Instantiate eagerly so the OS light/dark listener runs on every page, not just Settings.
     provideAppInitializer(() => void inject(ThemeService)),
+    // Picks up new deployments without the user having to reload (see AppUpdateService).
+    provideAppInitializer(() => inject(AppUpdateService).start()),
     // App-wide so any page can raise a toast or a confirmation; rendered once in app-shell.
     MessageService,
     ConfirmationService,
