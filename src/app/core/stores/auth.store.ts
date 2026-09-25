@@ -31,7 +31,7 @@ export class AuthStore {
     try {
       await firstValueFrom(this.authService.register(request));
     } catch (err) {
-      this._error.set(this.extractErrorMessage(err, 'Could not register.'));
+      this._error.set(this.extractErrorMessage(err, 'No se pudo crear la cuenta.'));
       throw err;
     } finally {
       this._loading.set(false);
@@ -45,7 +45,7 @@ export class AuthStore {
       const response = await firstValueFrom(this.authService.login(request));
       this.setToken(response.token);
     } catch (err) {
-      this._error.set(this.extractErrorMessage(err, 'Invalid email or password.'));
+      this._error.set(this.extractErrorMessage(err, 'Correo o contraseña incorrectos.'));
       throw err;
     } finally {
       this._loading.set(false);

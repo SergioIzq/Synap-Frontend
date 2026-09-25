@@ -41,7 +41,7 @@ export class NotesStore {
     try {
       this._notes.set(await firstValueFrom(this.noteService.search(searchTerm, tag)));
     } catch (err) {
-      this._error.set(this.extractErrorMessage(err, 'Could not load notes.'));
+      this._error.set(this.extractErrorMessage(err, 'No se pudieron cargar las notas.'));
     } finally {
       this._loading.set(false);
     }
@@ -57,7 +57,7 @@ export class NotesStore {
       await firstValueFrom(this.noteService.create(request));
       await this.refresh();
     } catch (err) {
-      this._error.set(this.extractErrorMessage(err, 'Could not create note.'));
+      this._error.set(this.extractErrorMessage(err, 'No se pudo crear la nota.'));
       throw err;
     }
   }
@@ -68,7 +68,7 @@ export class NotesStore {
       await firstValueFrom(this.noteService.update(id, request));
       await this.refresh();
     } catch (err) {
-      this._error.set(this.extractErrorMessage(err, 'Could not update note.'));
+      this._error.set(this.extractErrorMessage(err, 'No se pudo actualizar la nota.'));
       throw err;
     }
   }
@@ -79,7 +79,7 @@ export class NotesStore {
       await firstValueFrom(this.noteService.delete(id));
       this._notes.update((notes) => notes.filter((n) => n.id !== id));
     } catch (err) {
-      this._error.set(this.extractErrorMessage(err, 'Could not delete note.'));
+      this._error.set(this.extractErrorMessage(err, 'No se pudo eliminar la nota.'));
       throw err;
     }
   }
@@ -90,7 +90,7 @@ export class NotesStore {
       await firstValueFrom(this.noteService.addTag(id, tagName));
       await this.refresh();
     } catch (err) {
-      this._error.set(this.extractErrorMessage(err, 'Could not add tag.'));
+      this._error.set(this.extractErrorMessage(err, 'No se pudo añadir la etiqueta.'));
       throw err;
     }
   }

@@ -39,8 +39,8 @@ export class AssistantStore {
   private extractErrorMessage(err: unknown): string {
     if (err instanceof HttpErrorResponse) {
       const apiResult = err.error as ApiResult | undefined;
-      return apiResult?.error?.message ?? 'Could not reach the assistant.';
+      return apiResult?.error?.message ?? 'No se pudo contactar con el asistente.';
     }
-    return 'Could not reach the assistant.';
+    return 'No se pudo contactar con el asistente.';
   }
 }
