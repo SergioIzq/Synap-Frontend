@@ -16,6 +16,16 @@ export const AUTH_ROUTES: Routes = [
         canActivate: [noAuthGuard],
         loadComponent: () => import('./pages/register.page').then((m) => m.RegisterPage),
       },
+      {
+        path: 'forgot-password',
+        canActivate: [noAuthGuard],
+        loadComponent: () => import('./pages/forgot-password.page').then((m) => m.ForgotPasswordPage),
+      },
+      {
+        // No guard: the emailed link must work even in a browser with a (soon dead) session.
+        path: 'reset-password',
+        loadComponent: () => import('./pages/reset-password.page').then((m) => m.ResetPasswordPage),
+      },
     ],
   },
 ];

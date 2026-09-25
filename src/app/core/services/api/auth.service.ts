@@ -17,6 +17,17 @@ export class AuthService {
     return this.http.post<ApiResult<AuthResponse>>(`${this.apiUrl}/login`, request).pipe(map((res) => res.value));
   }
 
+  /** Always succeeds the same way, whether or not the email has an account. */
+  forgotPassword(email: string): Observable<void> {
+    return this.http.post<ApiResult>(`${this.apiUrl}/forgot-password`, { email }).pipe(map(() => undefined));
+  }
+
+  resetPassword(token: string, newPassword: string): Observable<void> {
+    return this.http
+      .post<ApiResult>(`${this.apiUrl}/reset-password`, { token, newPassword })
+      .pipe(map(() => undefined));
+  }
+
   generateApiToken(): Observable<string> {
     return this.http.post<ApiResult<string>>(`${this.apiUrl}/api-token`, {}).pipe(map((res) => res.value));
   }

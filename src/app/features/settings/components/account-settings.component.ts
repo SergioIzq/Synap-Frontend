@@ -164,10 +164,12 @@ export class AccountSettingsComponent {
     this.passwordError.set(null);
     this.changingPassword.set(true);
     try {
-      await firstValueFrom(this.accountService.changePassword(currentPassword, newPassword));
+      const session = await firstValueFrom(this.accountService.changePassword(currentPassword, newPassword));
+      // Every other session just ended (specs/identity); keep this one alive with the new token.
+      this.authStore.adoptSession(session.token);
       this.passwordForm.reset();
       this.passwordFormKey.update((key) => key + 1);
-      this.notifications.success('Contraseña actualizada');
+      this.notifications.success('Contraseña actualizada', 'Se ha cerrado la sesión en tus otros dispositivos.');
     } catch (err) {
       this.passwordError.set(apiErrorMessage(err, 'No se pudo cambiar la contraseña.'));
     } finally {

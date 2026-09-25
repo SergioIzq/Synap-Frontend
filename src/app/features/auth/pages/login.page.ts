@@ -47,6 +47,12 @@ import { AuthStore } from '../../../core/stores/auth.store';
       :host ::ng-deep input { width: 100%; }
     }
 
+    .forgot-link {
+      align-self: flex-end;
+      font-size: 0.825rem;
+      margin-top: 0.15rem;
+    }
+
     .footer-link {
       margin-top: 1rem;
       text-align: center;
@@ -81,6 +87,7 @@ import { AuthStore } from '../../../core/stores/auth.store';
             placeholder="Tu contraseña"
             styleClass="w-full"
           />
+          <a class="forgot-link" routerLink="/auth/forgot-password">¿Olvidaste tu contraseña?</a>
         </div>
 
         @if (authStore.error()) {

@@ -35,4 +35,11 @@ describe('AuthStore', () => {
     expect(localStorage.getItem('synap.chat.someone-else')).toBeNull();
     expect(localStorage.getItem('synap.theme')).toBe('dark');
   });
+
+  it('adoptSession() switches to the new token without logging out', () => {
+    const next = `x.${btoa(JSON.stringify({ sub: 'user-123' })).replace(/=+$/, '')}.z`;
+    store.adoptSession(next);
+    expect(store.token()).toBe(next);
+    expect(localStorage.getItem('synap_token')).toBe(next);
+  });
 });

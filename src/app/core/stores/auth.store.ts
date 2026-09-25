@@ -57,6 +57,14 @@ export class AuthStore {
     }
   }
 
+  /**
+   * Replaces the session token without a login - after a password change the old token is
+   * dead (security stamp rotated) and the API returns a fresh one for this session.
+   */
+  adoptSession(token: string): void {
+    this.setToken(token);
+  }
+
   logout(): void {
     this.setToken(null);
     clearUserCaches();
