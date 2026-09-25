@@ -1,18 +1,32 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { animate, query, stagger, style, transition, trigger } from '@angular/animations';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputGroupModule } from 'primeng/inputgroup';
 import { InputGroupAddonModule } from 'primeng/inputgroupaddon';
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { MessageModule } from 'primeng/message';
+import { SkeletonModule } from 'primeng/skeleton';
 import { NotesStore } from '../store/notes.store';
 import { NoteCardComponent } from '../components/note-card.component';
+
+const listAnimation = trigger('listAnimation', [
+  transition('* => *', [
+    query(':enter', [
+      style({ opacity: 0, transform: 'translateY(6px)' }),
+      stagger(55, [
+        animate('220ms ease-out', style({ opacity: 1, transform: 'translateY(0)' })),
+      ]),
+    ], { optional: true }),
+  ]),
+]);
 
 @Component({
   selector: 'app-notes-list-page',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Eager,
+  animations: [listAnimation],
   imports: [
     ReactiveFormsModule,
     InputTextModule,
@@ -21,10 +35,11 @@ import { NoteCardComponent } from '../components/note-card.component';
     ButtonModule,
     SelectModule,
     MessageModule,
+    SkeletonModule,
     NoteCardComponent,
   ],
   styles: [`
-    h2 { margin: 0 0 1.25rem; font-size: 1.2rem; }
+    h2 { margin: 0 0 1.25rem; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
 
     .capture-form,
     .search-row {
@@ -97,13 +112,17 @@ import { NoteCardComponent } from '../components/note-card.component';
     }
 
     @if (notesStore.loading()) {
-      <p class="empty-state">Cargando…</p>
+      <p-skeleton height="80px" styleClass="mb-3" borderRadius="8px" />
+      <p-skeleton height="80px" styleClass="mb-3" borderRadius="8px" />
+      <p-skeleton height="80px" styleClass="mb-3" borderRadius="8px" />
     } @else if (notesStore.notes().length === 0) {
       <p class="empty-state">Aún no hay notas — captura la primera arriba.</p>
     } @else {
-      @for (note of notesStore.notes(); track note.id) {
-        <app-note-card [note]="note" />
-      }
+      <div [@listAnimation]="notesStore.notes().length">
+        @for (note of notesStore.notes(); track note.id) {
+          <app-note-card [note]="note" />
+        }
+      </div>
     }
   `,
 })

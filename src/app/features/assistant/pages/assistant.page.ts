@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, ElementRef, ViewChild, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { CardModule } from 'primeng/card';
 import { InputGroupModule } from 'primeng/inputgroup';
 import { InputTextModule } from 'primeng/inputtext';
 import { ButtonModule } from 'primeng/button';
@@ -14,14 +13,13 @@ import { AssistantStore } from '../store/assistant.store';
   changeDetection: ChangeDetectionStrategy.Eager,
   imports: [
     ReactiveFormsModule,
-    CardModule,
     InputGroupModule,
     InputTextModule,
     ButtonModule,
     MessageModule,
   ],
   styles: [`
-    h2 { margin: 0 0 1.5rem; font-size: 1.2rem; }
+    h2 { margin: 0 0 1.5rem; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
 
     .empty-hint {
       color: var(--p-text-muted-color);
@@ -32,36 +30,79 @@ import { AssistantStore } from '../store/assistant.store';
     .chat-list {
       display: flex;
       flex-direction: column;
-      gap: 1rem;
+      gap: 0.75rem;
       margin-bottom: 1.5rem;
     }
 
-    .question-label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--p-text-muted-color);
-      margin: 0 0 0.4rem;
+    /* Each exchange: user bubble then Synap bubble */
+    .msg-exchange {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      animation: msgIn 0.2s ease-out;
     }
 
-    .question-text {
-      margin: 0;
-      font-weight: 500;
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
-    .answer-label {
-      font-size: 0.75rem;
+    .msg-user {
+      align-self: flex-end;
+      max-width: 75%;
+      background: #6366f1;
+      color: white;
+      border-radius: 16px 16px 4px 16px;
+      padding: 0.625rem 1rem;
+      font-size: 0.925rem;
+      line-height: 1.5;
+    }
+
+    .msg-synap-wrap {
+      align-self: flex-start;
+      max-width: 85%;
+    }
+
+    .msg-synap-label {
+      font-size: 0.675rem;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.08em;
       color: var(--p-primary-color);
-      margin: 0.75rem 0 0.4rem;
+      margin: 0 0 0.3rem 0.75rem;
     }
 
-    .answer-pending {
-      color: var(--p-text-muted-color);
-      font-style: italic;
+    .msg-synap {
+      background: var(--p-surface-card);
+      border: 1px solid var(--p-surface-border);
+      border-radius: 16px 16px 16px 4px;
+      padding: 0.75rem 1rem;
+      font-size: 0.925rem;
+      line-height: 1.55;
+    }
+
+    /* Typing indicator */
+    .typing-dots {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      padding: 0.25rem 0;
+    }
+
+    .typing-dots span {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--p-text-muted-color);
+      animation: dotPulse 1.2s ease-in-out infinite;
+    }
+
+    .typing-dots span:nth-child(2) { animation-delay: 0.16s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.32s; }
+
+    @keyframes dotPulse {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+      40%           { transform: scale(1);   opacity: 1; }
     }
 
     .grounded-note {
@@ -84,24 +125,29 @@ import { AssistantStore } from '../store/assistant.store';
 
     <div class="chat-list" #chatList>
       @for (message of assistantStore.messages(); track $index) {
-        <p-card>
-          <p class="question-label">Tú</p>
-          <p class="question-text">{{ message.question }}</p>
+        <div class="msg-exchange">
+          <div class="msg-user">{{ message.question }}</div>
 
-          <p class="answer-label">Synap</p>
-          @if (message.pending) {
-            <p class="answer-pending">Pensando…</p>
-          } @else if (message.answer) {
-            <!-- Markdown rendered via MarkdownService; content is from our own trusted backend -->
-            <div class="markdown-body" [innerHTML]="renderMarkdown(message.answer.answer)"></div>
-            @if (message.answer.grounded) {
-              <p class="grounded-note">
-                <i class="pi pi-book"></i>
-                Basado en {{ message.answer.sourceNoteIds.length }} de tus notas.
-              </p>
-            }
-          }
-        </p-card>
+          <div class="msg-synap-wrap">
+            <p class="msg-synap-label">Synap</p>
+            <div class="msg-synap">
+              @if (message.pending) {
+                <div class="typing-dots">
+                  <span></span><span></span><span></span>
+                </div>
+              } @else if (message.answer) {
+                <!-- Markdown rendered via MarkdownService; content is from our own trusted backend -->
+                <div class="markdown-body" [innerHTML]="renderMarkdown(message.answer.answer)"></div>
+                @if (message.answer.grounded) {
+                  <p class="grounded-note">
+                    <i class="pi pi-book"></i>
+                    Basado en {{ message.answer.sourceNoteIds.length }} de tus notas.
+                  </p>
+                }
+              }
+            </div>
+          </div>
+        </div>
       }
     </div>
 

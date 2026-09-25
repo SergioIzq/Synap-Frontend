@@ -2,6 +2,13 @@
   box-sizing: border-box;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -14,6 +21,16 @@ html, body {
 /* Hide PrimeNG unlicensed banner — host element is in the DOM, shadow root is closed */
 #p-license-host {
   display: none !important;
+}
+
+/* Page headings — features h2 */
+.page-heading,
+.features-page h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 1.25rem;
+  color: var(--p-text-color);
 }
 
 /* Markdown rendered content */

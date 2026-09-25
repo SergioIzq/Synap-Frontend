@@ -15,9 +15,14 @@ import { Note } from '../../../core/models';
       text-decoration: none;
       color: inherit;
       margin-bottom: 0.75rem;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
 
-      &:hover ::ng-deep .p-card {
-        box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      &:hover {
+        transform: translateY(-2px);
+
+        ::ng-deep .p-card {
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.10);
+        }
       }
     }
 

@@ -12,7 +12,7 @@ import { RouterOutlet } from '@angular/router';
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      background: var(--p-surface-ground);
+      background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 40%, #ede9fe 100%);
     }
   `],
   template: `<router-outlet />`,

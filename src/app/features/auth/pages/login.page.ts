@@ -26,6 +26,12 @@ import { AuthStore } from '../../../core/stores/auth.store';
       width: 100%;
       max-width: 400px;
       padding: 1rem;
+      animation: cardIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(16px) scale(0.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
     }
 
     .field {
