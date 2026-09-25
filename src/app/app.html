@@ -1,1 +1,6 @@
 <router-outlet />
+
+<!-- App-wide, outside any layout, so toasts also show on the auth pages (e.g. "Cuenta
+     eliminada" after being sent to the login screen). -->
+<p-toast position="top-center" [preventDuplicates]="true" />
+<p-confirmdialog [style]="{ width: 'min(420px, calc(100vw - 2rem))' }" />

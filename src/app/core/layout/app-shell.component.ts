@@ -2,8 +2,6 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
-import { ToastModule } from 'primeng/toast';
-import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { AuthStore } from '../stores/auth.store';
 import { routeAnimations } from '../animations/route.animations';
 
@@ -22,7 +20,7 @@ interface NavItem {
   selector: 'app-shell',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [NgTemplateOutlet, RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, ToastModule, ConfirmDialogModule],
+  imports: [NgTemplateOutlet, RouterOutlet, RouterLink, RouterLinkActive, ButtonModule],
   animations: [routeAnimations],
   styles: [`
     :host {
@@ -189,9 +187,6 @@ interface NavItem {
         <span>Synap</span>
       </div>
     </header>
-
-    <p-toast position="top-center" [preventDuplicates]="true" />
-    <p-confirmdialog [style]="{ width: 'min(420px, calc(100vw - 2rem))' }" />
 
     <main class="content">
       <div class="route-wrapper" [@routeAnimation]="routeState">

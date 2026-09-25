@@ -36,3 +36,19 @@ export interface RelatedNote {
   type: NoteType;
   similarity: number;
 }
+
+/** GET /api/notes/search - one page of results plus the total (backend-hardening). */
+export interface PagedResult<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export interface NoteSearchParams {
+  term?: string | null;
+  tag?: string | null;
+  type?: NoteType | null;
+  page?: number;
+  pageSize?: number;
+}

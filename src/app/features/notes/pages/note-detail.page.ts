@@ -267,11 +267,9 @@ export class NoteDetailPage implements OnInit {
   );
 
   async ngOnInit(): Promise<void> {
-    // Also when the note isn't in the currently loaded (possibly filtered) list - e.g. arriving
-    // from an assistant source link or a related-note link.
-    if (!this.note()) {
-      await this.notesStore.search(null, null);
-    }
+    // The list is paged and may be filtered: a note opened from an assistant source, a related
+    // note or a direct link is fetched by id when it isn't among the loaded ones.
+    await this.notesStore.ensureNote(this.noteId());
 
     const note = this.note();
     if (note) {

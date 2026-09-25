@@ -2,19 +2,42 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { environment } from '../../../../environments/environment';
-import { ApiResult, CreateNoteRequest, Note, QuickCaptureRequest, RelatedNote, UpdateNoteRequest } from '../../models';
+import {
+  ApiResult,
+  CreateNoteRequest,
+  Note,
+  NoteSearchParams,
+  PagedResult,
+  QuickCaptureRequest,
+  RelatedNote,
+  UpdateNoteRequest,
+} from '../../models';
+
+export const NOTES_PAGE_SIZE = 20;
 
 @Injectable({ providedIn: 'root' })
 export class NoteService {
   private readonly http = inject(HttpClient);
   private readonly apiUrl = `${environment.apiUrl}/notes`;
 
-  search(searchTerm: string | null, tag: string | null): Observable<Note[]> {
-    const params: Record<string, string> = {};
-    if (searchTerm) params['q'] = searchTerm;
+  search({ term, tag, type, page = 1, pageSize = NOTES_PAGE_SIZE }: NoteSearchParams): Observable<PagedResult<Note>> {
+    const params: Record<string, string | number> = { page, pageSize };
+    if (term) params['q'] = term;
     if (tag) params['tag'] = tag;
+    if (type) params['type'] = type;
 
-    return this.http.get<ApiResult<Note[]>>(`${this.apiUrl}/search`, { params }).pipe(map((res) => res.value));
+    return this.http
+      .get<ApiResult<PagedResult<Note>>>(`${this.apiUrl}/search`, { params })
+      .pipe(map((res) => res.value));
+  }
+
+  getById(id: string): Observable<Note> {
+    return this.http.get<ApiResult<Note>>(`${this.apiUrl}/${id}`).pipe(map((res) => res.value));
+  }
+
+  /** Every tag the user has on at least one note - for the filter, independent of paging. */
+  listTags(): Observable<string[]> {
+    return this.http.get<ApiResult<string[]>>(`${environment.apiUrl}/tags`).pipe(map((res) => res.value));
   }
 
   create(request: CreateNoteRequest): Observable<string> {

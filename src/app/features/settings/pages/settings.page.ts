@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, ElementRef, OnInit, computed, inject, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { ConfirmationService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
@@ -14,10 +14,10 @@ import { InputTextModule } from 'primeng/inputtext';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { AuthService } from '../../../core/services/api/auth.service';
 import { ApiTokenStatus } from '../../../core/models';
-import { AuthStore } from '../../../core/stores/auth.store';
 import { ThemePreference, ThemeService } from '../../../core/services/theme.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SettingsStore } from '../store/settings.store';
+import { AccountSettingsComponent } from '../components/account-settings.component';
 
 const GROQ_KEYS_URL = 'https://console.groq.com/keys';
 const IOS_SHORTCUT_DOCS_URL = 'https://github.com/SergioIzq/Synap-Workspace/blob/main/docs/ios-shortcut-setup.md';
@@ -43,6 +43,7 @@ interface ModelOption {
     TagModule,
     InputTextModule,
     SelectButtonModule,
+    AccountSettingsComponent,
   ],
   styles: [`
     :host { display: block; max-width: 760px; }
@@ -127,17 +128,6 @@ interface ModelOption {
       input { flex: 1; font-family: var(--p-font-family-mono, monospace); font-size: 0.85rem; }
     }
 
-    .account-row {
-      display: flex;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 0.25rem 1rem;
-      font-size: 0.925rem;
-      margin-bottom: 1.25rem;
-
-      .muted { color: var(--p-text-muted-color); }
-      .email { overflow-wrap: anywhere; }
-    }
 
     .inline-error { margin-top: 0.5rem; }
   `],
@@ -322,11 +312,7 @@ interface ModelOption {
             <i class="pi pi-user"></i>
             <h3>Cuenta</h3>
           </div>
-          <div class="account-row">
-            <span class="muted">Correo electrónico</span>
-            <span class="email">{{ settings.email }}</span>
-          </div>
-          <p-button label="Cerrar sesión" icon="pi pi-sign-out" severity="secondary" [outlined]="true" (onClick)="logout()" />
+          <app-account-settings [email]="settings.email" />
         </p-card>
       </div>
     }
@@ -335,8 +321,6 @@ interface ModelOption {
 export class SettingsPage implements OnInit {
   protected readonly settingsStore = inject(SettingsStore);
   protected readonly themeService = inject(ThemeService);
-  private readonly authStore = inject(AuthStore);
-  private readonly router = inject(Router);
   private readonly authService = inject(AuthService);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly notifications = inject(NotificationService);
@@ -508,11 +492,6 @@ export class SettingsPage implements OnInit {
    * "timestamp without time zone" column with no offset - which the browser would otherwise
    * read as local time (hours off). Timestamps without an explicit offset are treated as UTC.
    */
-  protected logout(): void {
-    this.authStore.logout();
-    void this.router.navigate(['/auth/login']);
-  }
-
   protected formatDate(value: string): string {
     const hasOffset = /(Z|[+-]\d{2}:?\d{2})$/.test(value);
     return new Date(hasOffset ? value : `${value}Z`).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
