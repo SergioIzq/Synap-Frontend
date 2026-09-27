@@ -29,6 +29,15 @@ COPY --from=builder /app/dist/out/browser /usr/share/nginx/html
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Proxy opcional de /api (SYNAP_API_UPSTREAM): el script lo escribe al arrancar, como
+# usuario nginx, así que el directorio del snippet debe ser suyo. El ENTRYPOINT de la
+# imagen base (/docker-entrypoint.sh) se mantiene: es quien ejecuta docker-entrypoint.d.
+COPY docker/40-synap-api-proxy.sh /docker-entrypoint.d/40-synap-api-proxy.sh
+RUN chmod 755 /docker-entrypoint.d/40-synap-api-proxy.sh && \
+    mkdir -p /etc/nginx/snippets && \
+    touch /etc/nginx/snippets/api-proxy.conf && \
+    chown -R nginx:nginx /etc/nginx/snippets
+
 RUN chown -R nginx:nginx /usr/share/nginx/html && \
     chown -R nginx:nginx /var/cache/nginx && \
     chown -R nginx:nginx /var/log/nginx && \

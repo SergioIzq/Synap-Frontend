@@ -5,13 +5,13 @@ import {
   DestroyRef,
   ElementRef,
   HostListener,
-  Injector,
-  afterNextRender,
-  effect,
   OnInit,
   ViewChild,
   computed,
+  effect,
   inject,
+  signal,
+  untracked,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
@@ -24,15 +24,44 @@ import { SelectModule } from 'primeng/select';
 import { MessageModule } from 'primeng/message';
 import { SkeletonModule } from 'primeng/skeleton';
 import { SelectButtonModule } from 'primeng/selectbutton';
+import { PaginatorModule, PaginatorState } from 'primeng/paginator';
 import { NoteType } from '../../../core/models';
-import { NotesStore } from '../store/notes.store';
+import { DEFAULT_QUERY, NotesQuery, NotesStore, PAGE_SIZE_OPTIONS } from '../store/notes.store';
 import { NoteCardComponent } from '../components/note-card.component';
 import { NoteComposerComponent } from '../components/note-composer.component';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, ParamMap, Params, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-/** How far before the end of the list the next page starts loading. */
-const PREFETCH_PX = 400;
+const NOTE_TYPES: readonly NoteType[] = ['text', 'codeSnippet', 'bookmark'];
+
+/** Reads the list's URL (`?q=&tag=&type=&page=&size=`), clamping anything invalid to its default. */
+export function queryFromParams(params: ParamMap): NotesQuery {
+  const type = params.get('type') as NoteType | null;
+  const page = Number(params.get('page'));
+  const size = Number(params.get('size'));
+  return {
+    term: params.get('q')?.trim() || null,
+    tag: params.get('tag') || null,
+    type: type && NOTE_TYPES.includes(type) ? type : null,
+    page: Number.isInteger(page) && page >= 1 ? page : DEFAULT_QUERY.page,
+    pageSize: (PAGE_SIZE_OPTIONS as readonly number[]).includes(size) ? size : DEFAULT_QUERY.pageSize,
+  };
+}
+
+/** Only non-default values end up in the URL; null removes a param when merging. */
+export function paramsFromQuery(query: NotesQuery): Params {
+  return {
+    q: query.term || null,
+    tag: query.tag || null,
+    type: query.type || null,
+    page: query.page !== DEFAULT_QUERY.page ? query.page : null,
+    size: query.pageSize !== DEFAULT_QUERY.pageSize ? query.pageSize : null,
+  };
+}
+
+function sameQuery(a: NotesQuery, b: NotesQuery): boolean {
+  return a.term === b.term && a.tag === b.tag && a.type === b.type && a.page === b.page && a.pageSize === b.pageSize;
+}
 
 const listAnimation = trigger('listAnimation', [
   transition('* => *', [
@@ -60,9 +89,11 @@ const listAnimation = trigger('listAnimation', [
     MessageModule,
     SkeletonModule,
     SelectButtonModule,
+    PaginatorModule,
     FormsModule,
     NoteCardComponent,
     NoteComposerComponent,
+    RouterLink,
   ],
   styles: [`
     h2 { margin: 0 0 1.25rem; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
@@ -99,7 +130,9 @@ const listAnimation = trigger('listAnimation', [
       .count { font-size: 0.8rem; color: var(--p-text-muted-color); }
     }
 
-    .load-more { display: flex; justify-content: center; padding: 0.5rem 0 1rem; }
+    .pager { padding: 0.5rem 0 1rem; }
+    .pager ::ng-deep .p-paginator { background: transparent; flex-wrap: wrap; row-gap: 0.25rem; }
+    .pager ::ng-deep .p-paginator-current { width: 100%; justify-content: center; text-align: center; order: 9; }
 
     @media (max-width: 767px) {
       .search-row { flex-direction: column; align-items: stretch; }
@@ -138,7 +171,7 @@ const listAnimation = trigger('listAnimation', [
       />
     </div>
 
-    <div class="type-row">
+    <div class="type-row" #listTop>
       <p-selectbutton
         [options]="typeOptions"
         [ngModel]="notesStore.type()"
@@ -149,8 +182,19 @@ const listAnimation = trigger('listAnimation', [
         size="small"
         aria-label="Filtrar por tipo"
       />
+      @if (notesStore.tag(); as tag) {
+        <p-button
+          icon="pi pi-sparkles"
+          [label]="'Preguntar sobre #' + tag"
+          size="small"
+          severity="secondary"
+          [outlined]="true"
+          routerLink="/app/assistant"
+          [queryParams]="{ tag: tag }"
+        />
+      }
       @if (!notesStore.loading() && notesStore.totalCount() > 0) {
-        <span class="count">{{ notesStore.notes().length }} de {{ notesStore.totalCount() }} notas</span>
+        <span class="count">{{ notesStore.totalCount() }} {{ notesStore.totalCount() === 1 ? 'nota' : 'notas' }}</span>
       }
     </div>
 
@@ -188,20 +232,20 @@ const listAnimation = trigger('listAnimation', [
       </div>
     }
 
-    <!-- Infinite scroll: the sentinel loads the next page as it nears the viewport; the button
-         is the accessible/keyboard fallback and shows while a page is loading. -->
-    <div #sentinel class="scroll-sentinel" aria-hidden="true"></div>
-    @if (notesStore.hasMore() && !notesStore.loading() && !notesStore.error()) {
-      <div class="load-more">
-        <p-button
-          label="Cargar más"
-          icon="pi pi-angle-down"
-          severity="secondary"
-          [outlined]="true"
-          [loading]="notesStore.loadingMore()"
-          (onClick)="notesStore.loadMore()"
+    <!-- Page controls (fix-notes-list): hidden when everything fits on one page. -->
+    @if (!notesStore.error() && notesStore.pageCount() > 1) {
+      <nav class="pager" aria-label="Paginación de notas">
+        <p-paginator
+          [first]="(notesStore.page() - 1) * notesStore.pageSize()"
+          [rows]="notesStore.pageSize()"
+          [totalRecords]="notesStore.totalCount()"
+          [rowsPerPageOptions]="pageSizeOptions"
+          [pageLinkSize]="narrow() ? 3 : 5"
+          [showCurrentPageReport]="true"
+          currentPageReportTemplate="Mostrando {first}–{last} de {totalRecords}"
+          (onPageChange)="changePage($event)"
         />
-      </div>
+      </nav>
     }
   `,
 })
@@ -210,23 +254,39 @@ export class NotesListPage implements OnInit, AfterViewInit {
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly searchForm = this.formBuilder.nonNullable.group({ term: [''], tag: [''] });
+  protected readonly pageSizeOptions = [...PAGE_SIZE_OPTIONS];
 
   @ViewChild('searchInput') private searchInput?: ElementRef<HTMLInputElement>;
-  @ViewChild('sentinel') private sentinel?: ElementRef<HTMLElement>;
+  @ViewChild('listTop') private listTop?: ElementRef<HTMLElement>;
   @ViewChild(NoteComposerComponent) private composer?: NoteComposerComponent;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly injector = inject(Injector);
-  private observer?: IntersectionObserver;
+
+  /** Fewer page links on phones so the controls fit at 360px. */
+  protected readonly narrow = signal(false);
 
   constructor() {
-    // After every render of the list, check again: on a tall screen the sentinel can stay
-    // visible after a page is appended, and the observer only reports *changes*.
+    // The URL drives the list, but the store can settle on another page than the one asked
+    // for (a page past the last one, a deleted note, a new note on page 1): mirror that back
+    // without adding a history entry.
     effect(() => {
-      this.notesStore.notes();
-      this.scheduleLoadCheck();
+      const shown = this.notesStore.query();
+      if (this.notesStore.loading()) return;
+      untracked(() => {
+        if (!sameQuery(shown, queryFromParams(this.route.snapshot.queryParamMap))) {
+          void this.navigate(shown, true);
+        }
+      });
     });
+
+    if (typeof matchMedia !== 'undefined') {
+      const mobile = matchMedia('(max-width: 767px)');
+      this.narrow.set(mobile.matches);
+      const onChange = (e: MediaQueryListEvent) => this.narrow.set(e.matches);
+      mobile.addEventListener('change', onChange);
+      this.destroyRef.onDestroy(() => mobile.removeEventListener('change', onChange));
+    }
   }
 
   protected readonly typeOptions: { label: string; value: NoteType | null }[] = [
@@ -254,12 +314,23 @@ export class NotesListPage implements OnInit, AfterViewInit {
 
   protected clearFilters(): void {
     this.searchForm.reset({ term: '', tag: '' });
-    void this.notesStore.search();
+    void this.navigate({ ...this.notesStore.query(), term: null, tag: null, type: null, page: 1 });
   }
 
   protected changeType(type: NoteType | null): void {
-    const { term, tag } = this.searchForm.getRawValue();
-    void this.notesStore.search({ term: term.trim() || null, tag: tag || null, type });
+    void this.navigate({ ...this.formFilters(), type, page: 1 });
+  }
+
+  protected changePage(event: PaginatorState): void {
+    const current = this.notesStore.query();
+    const pageSize = event.rows ?? current.pageSize;
+    // A new page size starts over at page 1: the old page number means other notes now.
+    const page = pageSize !== current.pageSize ? 1 : (event.page ?? 0) + 1;
+    if (page === current.page && pageSize === current.pageSize) return;
+
+    void this.navigate({ ...current, page, pageSize }).then(() =>
+      this.listTop?.nativeElement.scrollIntoView({ block: 'start' }),
+    );
   }
 
   protected focusCapture(): void {
@@ -274,7 +345,17 @@ export class NotesListPage implements OnInit, AfterViewInit {
   }
 
   ngOnInit(): void {
-    void this.notesStore.search();
+    // Every URL change (typing a filter, a page, Back/Forward, a shared link) loads that page;
+    // the first emission always loads, so the list is fresh when coming back to it.
+    let first = true;
+    this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      const query = queryFromParams(params);
+      this.searchForm.setValue({ term: query.term ?? '', tag: query.tag ?? '' }, { emitEvent: false });
+      if (first || !sameQuery(query, this.notesStore.query())) {
+        void this.notesStore.search(query);
+      }
+      first = false;
+    });
     void this.notesStore.loadTags();
   }
 
@@ -286,33 +367,25 @@ export class NotesListPage implements OnInit, AfterViewInit {
       this.composer?.open();
       void this.router.navigate([], { queryParams: { compose: null }, queryParamsHandling: 'merge', replaceUrl: true });
     });
-
-    if (!this.sentinel || typeof IntersectionObserver === 'undefined') return;
-
-    // Starts loading a little before the end is actually reached.
-    // The observer's entries can be computed before a freshly loaded page is painted (the
-    // sentinel still sits at the top), so they only trigger a check against the live layout.
-    this.observer = new IntersectionObserver(() => this.scheduleLoadCheck(), { rootMargin: `0px 0px ${PREFETCH_PX}px 0px` });
-    this.observer.observe(this.sentinel.nativeElement);
-    this.destroyRef.onDestroy(() => this.observer?.disconnect());
-  }
-
-  /** Loads the next page once the current one is rendered, if the end is near by then. */
-  private scheduleLoadCheck(): void {
-    afterNextRender(
-      () => {
-        const sentinel = this.sentinel?.nativeElement;
-        if (!sentinel || this.notesStore.notes().length === 0) return;
-        if (sentinel.getBoundingClientRect().top <= window.innerHeight + PREFETCH_PX) {
-          void this.notesStore.loadMore();
-        }
-      },
-      { injector: this.injector },
-    );
   }
 
   submitSearch(): void {
+    // Typing replaces the history entry instead of adding one per keystroke.
+    void this.navigate({ ...this.formFilters(), type: this.notesStore.type(), page: 1 }, true);
+  }
+
+  /** The search box and tag select as filters, keeping the current page size. */
+  private formFilters(): NotesQuery {
     const { term, tag } = this.searchForm.getRawValue();
-    void this.notesStore.search({ term: term.trim() || null, tag: tag || null, type: this.notesStore.type() });
+    return { ...this.notesStore.query(), term: term.trim() || null, tag: tag || null };
+  }
+
+  private navigate(query: NotesQuery, replaceUrl = false): Promise<boolean> {
+    return this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: paramsFromQuery(query),
+      queryParamsHandling: 'merge',
+      replaceUrl,
+    });
   }
 }

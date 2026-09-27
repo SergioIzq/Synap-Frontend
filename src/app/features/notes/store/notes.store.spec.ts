@@ -26,7 +26,7 @@ const page = (ids: string[], pageNumber: number, total: number): PagedResult<Not
   totalCount: total,
 });
 
-describe('NotesStore (paging)', () => {
+describe('NotesStore', () => {
   type Mock = ReturnType<typeof vi.fn>;
   let service: { search: Mock; getById: Mock; listTags: Mock; update: Mock; addTag: Mock; delete: Mock; create: Mock };
   let store: NotesStore;
@@ -51,43 +51,42 @@ describe('NotesStore (paging)', () => {
     store = TestBed.inject(NotesStore);
   });
 
-  it('search() loads page 1 and knows there is more', async () => {
-    await store.search({ term: 'x', type: 'codeSnippet' });
+  it('search() loads one page with its filters and page size', async () => {
+    await store.search({ term: 'x', type: 'codeSnippet', pageSize: 2 });
 
-    expect(service.search).toHaveBeenCalledWith({ term: 'x', tag: null, type: 'codeSnippet', page: 1 });
+    expect(service.search).toHaveBeenCalledWith({ term: 'x', tag: null, type: 'codeSnippet', page: 1, pageSize: 2 });
     expect(store.notes().map((n) => n.id)).toEqual(['a', 'b']);
-    expect(store.hasMore()).toBe(true);
+    expect(store.totalCount()).toBe(3);
+    expect(store.pageCount()).toBe(2);
   });
 
-  it('loadMore() appends the next page with the same filters, then stops', async () => {
-    await store.search({ tag: 't' });
-    await store.loadMore();
+  it('search() for another page replaces the notes instead of appending', async () => {
+    await store.search({ tag: 't', pageSize: 2 });
+    await store.search({ tag: 't', page: 2, pageSize: 2 });
 
-    expect(service.search).toHaveBeenLastCalledWith({ term: null, tag: 't', type: null, page: 2 });
-    expect(store.notes().map((n) => n.id)).toEqual(['a', 'b', 'c']);
-    expect(store.hasMore()).toBe(false);
-
-    await store.loadMore();
-    expect(service.search).toHaveBeenCalledTimes(2);
+    expect(service.search).toHaveBeenLastCalledWith({ term: null, tag: 't', type: null, page: 2, pageSize: 2 });
+    expect(store.notes().map((n) => n.id)).toEqual(['c']);
+    expect(store.page()).toBe(2);
   });
 
-  it('loadMore() never duplicates a note that shifted pages', async () => {
+  it('a page past the last one falls back to the last page', async () => {
     service.search.mockImplementation((params: NoteSearchParams) =>
-      of(params.page === 1 ? page(['a', 'b'], 1, 4) : page(['b', 'c'], 2, 4)));
+      of(params.page === 2 ? page(['c'], 2, 3) : { ...page([], params.page!, 3) }));
 
-    await store.search();
-    await store.loadMore();
+    await store.search({ page: 9, pageSize: 2 });
 
-    expect(store.notes().map((n) => n.id)).toEqual(['a', 'b', 'c']);
+    expect(service.search).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
+    expect(store.page()).toBe(2);
+    expect(store.notes().map((n) => n.id)).toEqual(['c']);
   });
 
-  it('a new search resets to page 1', async () => {
+  it('an empty vault stays on page 1', async () => {
+    service.search.mockReturnValue(of(page([], 1, 0)));
     await store.search();
-    await store.loadMore();
-    await store.search({ term: 'otra' });
 
-    expect(store.notes().map((n) => n.id)).toEqual(['a', 'b']);
-    expect(store.searchTerm()).toBe('otra');
+    expect(service.search).toHaveBeenCalledTimes(1);
+    expect(store.notes()).toEqual([]);
+    expect(store.pageCount()).toBe(1);
   });
 
   it('ignores a stale response that arrives after a newer search', async () => {
@@ -106,7 +105,7 @@ describe('NotesStore (paging)', () => {
 
   it('ensureNote() fetches a note outside the loaded pages', async () => {
     await store.search();
-    await store.ensureNote('lejana');
+    expect(await store.ensureNote('lejana')).toBe('found');
 
     expect(service.getById).toHaveBeenCalledWith('lejana');
     expect(store.noteById('lejana')?.id).toBe('lejana');
@@ -117,8 +116,13 @@ describe('NotesStore (paging)', () => {
 
   it('ensureNote() tolerates a 404', async () => {
     service.getById.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 404 })));
-    await store.ensureNote('ajena');
+    expect(await store.ensureNote('ajena')).toBe('missing');
     expect(store.noteById('ajena')).toBeUndefined();
+  });
+
+  it('ensureNote() tells a network failure apart from a missing note', async () => {
+    service.getById.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 0 })));
+    expect(await store.ensureNote('x')).toBe('error');
   });
 
   it('addTag() refreshes just that note and the tag list', async () => {
@@ -130,12 +134,33 @@ describe('NotesStore (paging)', () => {
     expect(service.search).toHaveBeenCalledTimes(1);
   });
 
-  it('delete() removes the note and lowers the total', async () => {
-    await store.search();
+  it('delete() reloads the current page so it refills from the next one', async () => {
+    await store.search({ tag: 't', page: 1, pageSize: 2 });
+    service.search.mockReturnValue(of(page(['b', 'c'], 1, 2)));
     await store.delete('a');
 
-    expect(store.notes().map((n) => n.id)).toEqual(['b']);
+    expect(service.delete).toHaveBeenCalledWith('a');
+    expect(service.search).toHaveBeenLastCalledWith({ term: null, tag: 't', type: null, page: 1, pageSize: 2 });
+    expect(store.notes().map((n) => n.id)).toEqual(['b', 'c']);
     expect(store.totalCount()).toBe(2);
+  });
+
+  it('delete() of the only note on the last page moves to the previous page', async () => {
+    await store.search({ page: 2, pageSize: 2 });
+    service.search.mockImplementation((params: NoteSearchParams) =>
+      of(params.page === 1 ? page(['a', 'b'], 1, 2) : page([], 2, 2)));
+    await store.delete('c');
+
+    expect(store.page()).toBe(1);
+    expect(store.notes().map((n) => n.id)).toEqual(['a', 'b']);
+  });
+
+  it('create() shows page 1 keeping the filters', async () => {
+    await store.search({ tag: 't', page: 2, pageSize: 2 });
+    await store.create({ type: 'text', title: null, content: 'nueva', tags: [] });
+
+    expect(service.search).toHaveBeenLastCalledWith({ term: null, tag: 't', type: null, page: 1, pageSize: 2 });
+    expect(store.page()).toBe(1);
   });
 
   it('updateWithTags() saves content and each new tag, then refreshes once', async () => {

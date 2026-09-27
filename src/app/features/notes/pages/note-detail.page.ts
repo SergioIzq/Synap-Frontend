@@ -96,9 +96,15 @@ const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
     .related a { display: block; padding: 0.35rem 0; font-size: 0.9rem; color: var(--p-primary-color); text-decoration: none; }
     .related a:hover { text-decoration: underline; }
 
+    .tag-ask { display: inline-flex; align-items: center; gap: 0.1rem; }
+    .tag-ask ::ng-deep .p-button { width: 1.75rem; height: 1.75rem; }
+    .ai-hint { display: block; margin: -0.5rem 0 1rem; text-align: right; font-size: 0.8rem; color: var(--p-text-muted-color); }
+
     @media (max-width: 767px) {
       .sheet { padding: 1rem; }
       .hint { display: none; }
+      /* Icon only on phones: the toolbar must fit at 360px. */
+      .ask-ai ::ng-deep .p-button-label { display: none; }
     }
   `],
   template: `
@@ -107,6 +113,19 @@ const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
       <span class="spacer"></span>
       @if (note(); as n) {
         @if (!editing()) {
+          <!-- scoped-assistant: bookmarks only hold their link, so they can't be asked about yet -->
+          <p-button
+            class="ask-ai"
+            icon="pi pi-sparkles"
+            label="Preguntar a la IA"
+            severity="secondary"
+            [outlined]="true"
+            size="small"
+            [ariaLabel]="n.type === 'bookmark' ? 'Preguntar a la IA (no disponible para enlaces)' : 'Preguntar a la IA sobre esta nota'"
+            [disabled]="n.type === 'bookmark'"
+            [routerLink]="n.type === 'bookmark' ? null : '/app/assistant'"
+            [queryParams]="{ note: n.id }"
+          />
           <p-button icon="pi pi-copy" severity="secondary" [text]="true" ariaLabel="Copiar contenido" (onClick)="copy(n)" />
           <p-button icon="pi pi-pencil" severity="secondary" [text]="true" ariaLabel="Editar nota" (onClick)="startEdit(n)" />
           <p-button icon="pi pi-trash" severity="danger" [text]="true" ariaLabel="Eliminar nota" (onClick)="confirmDelete()" />
@@ -115,6 +134,9 @@ const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
     </div>
 
     @if (note(); as n) {
+      @if (n.type === 'bookmark' && !editing()) {
+        <small class="ai-hint">Podrás preguntar a la IA sobre enlaces cuando Synap pueda leer el contenido del artículo.</small>
+      }
       <article class="sheet">
         @if (editing()) {
           <form class="edit-form" [formGroup]="editForm" (ngSubmit)="save(n)" (keydown)="onEditKeydown($event, n)">
@@ -178,7 +200,19 @@ const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
           @if (n.tags.length > 0) {
             <div class="tags">
               @for (tag of n.tags; track tag) {
-                <p-tag [value]="'#' + tag" severity="secondary" />
+                <span class="tag-ask">
+                  <p-tag [value]="'#' + tag" severity="secondary" />
+                  <p-button
+                    icon="pi pi-sparkles"
+                    severity="secondary"
+                    [text]="true"
+                    [rounded]="true"
+                    size="small"
+                    [ariaLabel]="'Preguntar sobre #' + tag"
+                    routerLink="/app/assistant"
+                    [queryParams]="{ tag: tag }"
+                  />
+                </span>
               }
             </div>
           }

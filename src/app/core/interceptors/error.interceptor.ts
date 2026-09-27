@@ -4,12 +4,14 @@ import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { AuthStore } from '../stores/auth.store';
 import { NotificationService } from '../services/notification.service';
+import { isNonApiResponse } from '../utils/http-errors';
 
 /**
  * Cross-cutting HTTP error handling:
  * - an expired/invalid session logs out instead of leaving the user stuck;
- * - network failures and 5xx get one global Spanish toast (specs/web-experience "Operation
- *   feedback"). 4xx are business errors - each store shows its own message for those.
+ * - network failures, 5xx and responses that aren't the API's JSON (e.g. index.html served
+ *   for /api) get one global Spanish toast (specs/web-experience "Operation feedback").
+ *   4xx are business errors - each store shows its own message for those.
  */
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const authStore = inject(AuthStore);
@@ -23,6 +25,8 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         router.navigate(['/auth/login']);
       } else if (error.status === 0) {
         notifications.error('Sin conexión con el servidor', 'Comprueba tu conexión e inténtalo de nuevo.');
+      } else if (isNonApiResponse(error)) {
+        notifications.error('No se pudo contactar con el servidor', 'Inténtalo de nuevo en unos segundos.');
       } else if (error.status >= 500) {
         notifications.error('Algo ha fallado en el servidor', 'Inténtalo de nuevo en unos segundos.');
       }

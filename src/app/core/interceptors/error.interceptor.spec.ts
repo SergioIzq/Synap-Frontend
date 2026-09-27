@@ -1,11 +1,23 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpInterceptorFn, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, throwError } from 'rxjs';
 import { AuthStore } from '../stores/auth.store';
 import { NotificationService } from '../services/notification.service';
 import { errorInterceptor } from './error.interceptor';
+import { isHandledGlobally } from '../utils/http-errors';
+
+/** What HttpClient raises when a 200 response isn't JSON - e.g. index.html served for /api. */
+const nonApiResponse = new HttpErrorResponse({
+  status: 200,
+  statusText: 'OK',
+  url: '/api/notes',
+  error: { error: new SyntaxError(`Unexpected token '<', "<!doctype "... is not valid JSON`), text: '<!doctype html>' },
+});
+
+/** Stands in for the backend, after errorInterceptor, failing with `nonApiResponse`. */
+const htmlBackend: HttpInterceptorFn = () => throwError(() => nonApiResponse);
 
 describe('errorInterceptor', () => {
   let http: HttpClient;
@@ -57,5 +69,25 @@ describe('errorInterceptor', () => {
     await failWith(401);
     expect(logout).toHaveBeenCalled();
     expect(notifications.error).not.toHaveBeenCalled();
+  });
+
+  it('shows one Spanish toast for a response that is not the API\'s JSON', async () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withInterceptors([errorInterceptor, htmlBackend])),
+        { provide: NotificationService, useValue: notifications },
+        { provide: AuthStore, useValue: { logout } },
+        { provide: Router, useValue: { navigate: vi.fn() } },
+      ],
+    });
+
+    const error = await firstValueFrom(TestBed.inject(HttpClient).get('/api/notes')).catch((e: unknown) => e);
+
+    expect(notifications.error).toHaveBeenCalledTimes(1);
+    expect(notifications.error).toHaveBeenCalledWith('No se pudo contactar con el servidor', expect.any(String));
+    expect(JSON.stringify(notifications.error.mock.calls)).not.toContain('Unexpected token');
+    // Stores must not add a second toast for it.
+    expect(isHandledGlobally(error)).toBe(true);
   });
 });

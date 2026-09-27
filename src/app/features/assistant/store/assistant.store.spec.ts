@@ -1,18 +1,20 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { AssistantService } from '../../../core/services/api/assistant.service';
 import { AssistantAnswer, AssistantAnswerStatus, ChatMessage } from '../../../core/models';
 import { AuthStore } from '../../../core/stores/auth.store';
 import { SettingsStore } from '../../settings/store/settings.store';
-import { AssistantStore, MAX_STORED_MESSAGES } from './assistant.store';
+import { AssistantStore, MAX_SCOPED_CONVERSATIONS, MAX_STORED_MESSAGES } from './assistant.store';
 
 function answer(status: AssistantAnswerStatus, text = 'texto'): AssistantAnswer {
   return { answer: text, sourceNoteIds: [], grounded: status === 'ok', status };
 }
 
-const storedFor = (userId: string): ChatMessage[] => JSON.parse(localStorage.getItem(`synap.chat.${userId}`) ?? '[]');
+const stored = (userId: string) => JSON.parse(localStorage.getItem(`synap.chat.${userId}`) ?? 'null');
+/** The stored messages of one scope's conversation (`global` by default). */
+const storedFor = (userId: string, key = 'global'): ChatMessage[] => stored(userId)?.conversations?.[key]?.messages ?? [];
 
 describe('AssistantStore', () => {
   let ask: ReturnType<typeof vi.fn>;
@@ -129,7 +131,10 @@ describe('AssistantStore', () => {
   });
 
   it('switches conversation when the user changes and empties it on sign out', async () => {
-    localStorage.setItem('synap.chat.user-b', JSON.stringify([{ question: 'de B', answer: answer('ok'), pending: false }]));
+    localStorage.setItem(
+      'synap.chat.user-b',
+      JSON.stringify({ v: 2, conversations: { global: { messages: [{ question: 'de B', answer: answer('ok'), pending: false }], updatedAt: 1 } } }),
+    );
     const store = createStore();
     ask.mockReturnValue(of(answer('ok')));
     await store.ask('de A');
@@ -157,5 +162,119 @@ describe('AssistantStore', () => {
 
     expect(store.messages()).toEqual([]);
     expect(localStorage.getItem('synap.chat.user-a')).toBeNull();
+  });
+
+  // ---- scoped conversations (scoped-assistant) ----
+
+  const note = { kind: 'note', noteId: 'n1', title: 'CORS' } as const;
+  const tag = { kind: 'tag', tag: 'docker' } as const;
+
+  it('migrates a stored pre-scopes conversation to the global one', () => {
+    localStorage.setItem('synap.chat.user-a', JSON.stringify([{ question: 'antigua', answer: answer('ok'), pending: false }]));
+    const store = createStore();
+
+    expect(store.messages().map((m) => m.question)).toEqual(['antigua']);
+    TestBed.tick();
+    expect(stored('user-a').v).toBe(2);
+    expect(storedFor('user-a').map((m) => m.question)).toEqual(['antigua']);
+  });
+
+  it('keeps each scope in its own conversation', async () => {
+    const store = createStore();
+    ask.mockReturnValue(of(answer('ok')));
+
+    store.setScope(note);
+    await store.ask('sobre la nota');
+    store.setScope({ kind: 'global' });
+    await store.ask('global');
+    expect(store.messages().map((m) => m.question)).toEqual(['global']);
+
+    store.setScope(note);
+    expect(store.messages().map((m) => m.question)).toEqual(['sobre la nota']);
+    TestBed.tick();
+    expect(storedFor('user-a', 'note:n1').map((m) => m.question)).toEqual(['sobre la nota']);
+  });
+
+  it('sends the scope and the last settled turns only for scoped questions', async () => {
+    const store = createStore();
+    ask.mockImplementation((question: string) => of(answer('ok', `r-${question}`)));
+
+    store.setScope(tag);
+    for (const q of ['q1', 'q2', 'q3', 'q4']) await store.ask(q);
+
+    expect(ask).toHaveBeenLastCalledWith('q4', tag, [
+      { question: 'q1', answer: 'r-q1' },
+      { question: 'q2', answer: 'r-q2' },
+      { question: 'q3', answer: 'r-q3' },
+    ]);
+
+    store.setScope({ kind: 'global' });
+    await store.ask('global');
+    expect(ask).toHaveBeenLastCalledWith('global', { kind: 'global' }, []);
+  });
+
+  it('delivers a late answer to the scope it was asked in', async () => {
+    const store = createStore();
+    const late = new Subject<AssistantAnswer>();
+    ask.mockReturnValue(late);
+
+    store.setScope(note);
+    const asking = store.ask('lenta');
+    store.setScope({ kind: 'global' });
+    late.next(answer('ok', 'llegó'));
+    late.complete();
+    await asking;
+
+    expect(store.messages()).toEqual([]);
+    store.setScope(note);
+    expect(store.messages().map((m) => m.answer?.answer)).toEqual(['llegó']);
+  });
+
+  it('clear() only clears the active scope', async () => {
+    const store = createStore();
+    ask.mockReturnValue(of(answer('ok')));
+    await store.ask('global');
+    store.setScope(note);
+    await store.ask('nota');
+
+    store.clear();
+    TestBed.tick();
+
+    expect(store.messages()).toEqual([]);
+    expect(storedFor('user-a').map((m) => m.question)).toEqual(['global']);
+    expect(stored('user-a').conversations['note:n1']).toBeUndefined();
+  });
+
+  it(`keeps at most ${MAX_SCOPED_CONVERSATIONS} scoped conversations, dropping the least recent`, async () => {
+    const store = createStore();
+    ask.mockReturnValue(of(answer('ok')));
+    await store.ask('global');
+    const now = vi.spyOn(Date, 'now');
+    for (let i = 0; i < MAX_SCOPED_CONVERSATIONS + 2; i++) {
+      now.mockReturnValue(1_000 + i);
+      store.setScope({ kind: 'tag', tag: `t${i}` });
+      await store.ask(`q${i}`);
+    }
+    now.mockRestore();
+    TestBed.tick();
+
+    const keys = Object.keys(stored('user-a').conversations);
+    expect(keys).toContain('global');
+    expect(keys.filter((k) => k.startsWith('tag:'))).toHaveLength(MAX_SCOPED_CONVERSATIONS);
+    expect(keys).not.toContain('tag:t0');
+    expect(keys).not.toContain('tag:t1');
+  });
+
+  it('forget() discards a scope, e.g. a deleted note', async () => {
+    const store = createStore();
+    ask.mockReturnValue(of(answer('ok')));
+    store.setScope(note);
+    await store.ask('nota');
+
+    store.forget(note);
+    TestBed.tick();
+
+    expect(store.messages()).toEqual([]);
+    expect(stored('user-a')).toBeNull();
   });
 });

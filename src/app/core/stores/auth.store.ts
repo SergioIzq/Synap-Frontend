@@ -1,8 +1,8 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../services/api/auth.service';
-import { ApiResult, LoginRequest, RegisterRequest } from '../models';
+import { LoginRequest, RegisterRequest } from '../models';
+import { apiErrorMessage } from '../utils/http-errors';
 
 const TOKEN_STORAGE_KEY = 'synap_token';
 
@@ -80,11 +80,7 @@ export class AuthStore {
   }
 
   private extractErrorMessage(err: unknown, fallback: string): string {
-    if (err instanceof HttpErrorResponse) {
-      const apiResult = err.error as ApiResult | undefined;
-      return apiResult?.error?.message ?? fallback;
-    }
-    return fallback;
+    return apiErrorMessage(err, fallback);
   }
 }
 

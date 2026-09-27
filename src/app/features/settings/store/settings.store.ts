@@ -2,7 +2,8 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, firstValueFrom } from 'rxjs';
 import { SettingsService } from '../../../core/services/api/settings.service';
-import { AiSettings, ApiResult, UserSettings } from '../../../core/models';
+import { AiSettings, UserSettings } from '../../../core/models';
+import { apiErrorMessage } from '../../../core/utils/http-errors';
 
 /**
  * Plain signals, same shape as the other stores (see AuthStore's comment). Root-provided
@@ -96,8 +97,6 @@ function extractErrorMessage(err: unknown, fallback: string): string {
     if (err.status === 429) {
       return 'Demasiadas peticiones seguidas. Espera un momento y vuelve a intentarlo.';
     }
-    const apiResult = err.error as ApiResult | undefined;
-    return apiResult?.error?.message ?? fallback;
   }
-  return fallback;
+  return apiErrorMessage(err, fallback);
 }
