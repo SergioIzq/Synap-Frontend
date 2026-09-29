@@ -30,7 +30,9 @@ import {
   GLOBAL_SCOPE,
   Note,
   SETTINGS_FIXABLE_STATUSES,
+  describeRecurrence,
 } from '../../../core/models';
+import { formatDateTime } from '../../../core/utils/dates';
 import { NotesStore } from '../../notes/store/notes.store';
 import { SettingsStore } from '../../settings/store/settings.store';
 import { AssistantStore } from '../store/assistant.store';
@@ -96,6 +98,17 @@ export function actionChip(action: AssistantAction): ActionChip {
     }
     case 'memorySaved':
       return { label: `Recordado: ${action.text ?? ''}`.trim(), icon: 'pi pi-lightbulb', link: ['/app/settings'], fragment: 'memoria' };
+    case 'reminderCreated': {
+      // The moment is what lets the user catch the assistant getting a relative date wrong
+      // (specs/ai-assistant "Created reminder shown with its moment").
+      const when = action.dueAt ? ` para el ${formatDateTime(action.dueAt)}` : '';
+      const repeats = action.recurrence ? ` · ${describeRecurrence(action.recurrence)}` : '';
+      return {
+        label: `Recordatorio creado: ${action.text ?? ''}${when}${repeats}`.trim(),
+        icon: 'pi pi-bell',
+        link: ['/app/reminders'],
+      };
+    }
   }
 }
 

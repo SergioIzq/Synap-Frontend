@@ -18,7 +18,7 @@ export interface AssistantSource {
 }
 
 /** What the assistant did while answering (assistant-agent-foundations design.md Decision 9). */
-export type AssistantActionType = 'noteCreated' | 'tagsAdded' | 'memorySaved';
+export type AssistantActionType = 'noteCreated' | 'tagsAdded' | 'memorySaved' | 'reminderCreated';
 
 export interface AssistantAction {
   type: AssistantActionType;
@@ -26,8 +26,12 @@ export interface AssistantAction {
   noteId?: string | null;
   title?: string | null;
   tags?: string[] | null;
-  /** memorySaved: the remembered fact. */
+  /** memorySaved: the remembered fact. reminderCreated: what will be recalled. */
   text?: string | null;
+  /** reminderCreated: the resolved moment in UTC, shown in local time (assistant-reminders). */
+  dueAt?: string | null;
+  /** reminderCreated: the stored recurrence, null for a one-off. */
+  recurrence?: string | null;
 }
 
 export interface AssistantAnswer {

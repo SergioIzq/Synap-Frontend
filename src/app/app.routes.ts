@@ -22,6 +22,11 @@ export const routes: Routes = [
           import('./features/assistant/assistant.routes').then((m) => m.ASSISTANT_ROUTES),
       },
       {
+        path: 'reminders',
+        loadComponent: () =>
+          import('./features/reminders/pages/reminders.page').then((m) => m.RemindersPage),
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./features/settings/pages/settings.page').then((m) => m.SettingsPage),

@@ -19,6 +19,7 @@ import { formatDateTime, parseApiDate } from '../../../core/utils/dates';
 import { RelativeTimePipe } from '../../../shared/pipes/relative-time.pipe';
 import { NotesStore } from '../store/notes.store';
 import { tagSuggestions } from '../../../shared/tag-suggestions';
+import { NoteRemindersComponent } from '../../reminders/components/note-reminders.component';
 
 const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
   text: { icon: 'pi pi-align-left', label: 'Texto' },
@@ -41,6 +42,7 @@ const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
     TagModule,
     TextareaModule,
     RelativeTimePipe,
+    NoteRemindersComponent,
   ],
   styles: [`
     :host { display: block; max-width: 900px; }
@@ -218,6 +220,10 @@ const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
           }
         }
       </article>
+
+      @if (!editing()) {
+        <app-note-reminders [noteId]="n.id" />
+      }
 
       @if (relatedNotes().length > 0 && !editing()) {
         <section class="related">
