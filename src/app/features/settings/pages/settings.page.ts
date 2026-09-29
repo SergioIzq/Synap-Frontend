@@ -19,6 +19,7 @@ import { NotificationService } from '../../../core/services/notification.service
 import { SettingsStore } from '../store/settings.store';
 import { formatDateTime } from '../../../core/utils/dates';
 import { AccountSettingsComponent } from '../components/account-settings.component';
+import { MemorySettingsComponent } from '../components/memory-settings.component';
 
 const GROQ_KEYS_URL = 'https://console.groq.com/keys';
 const IOS_SHORTCUT_DOCS_URL = 'https://github.com/SergioIzq/Synap-Workspace/blob/main/docs/ios-shortcut-setup.md';
@@ -26,6 +27,8 @@ const IOS_SHORTCUT_DOCS_URL = 'https://github.com/SergioIzq/Synap-Workspace/blob
 interface ModelOption {
   label: string;
   value: string | null;
+  /** Unknown (undefined) when the model isn't in the list Groq returned. */
+  supportsActions?: boolean;
 }
 
 @Component({
@@ -45,6 +48,7 @@ interface ModelOption {
     InputTextModule,
     SelectButtonModule,
     AccountSettingsComponent,
+    MemorySettingsComponent,
   ],
   styles: [`
     :host { display: block; max-width: 760px; }
@@ -139,6 +143,20 @@ interface ModelOption {
 
 
     .inline-error { margin-top: 0.5rem; }
+
+    .model-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      width: 100%;
+      min-width: 0;
+
+      span { overflow: hidden; text-overflow: ellipsis; }
+      ::ng-deep .p-tag { flex-shrink: 0; font-size: 0.7rem; }
+    }
+
+    .model-hint { margin: 0; font-size: 0.8rem; color: var(--p-text-muted-color); line-height: 1.45; }
   `],
   template: `
     <h2>Configuración</h2>
@@ -241,16 +259,44 @@ interface ModelOption {
                 filterBy="label"
                 placeholder="Selecciona un modelo"
                 styleClass="w-full"
-              />
+              >
+                <ng-template #item let-option>
+                  <div class="model-option">
+                    <span>{{ option.label }}</span>
+                    @if (option.supportsActions) {
+                      <p-tag value="Acciones" severity="info" icon="pi pi-bolt" />
+                    }
+                  </div>
+                </ng-template>
+              </p-select>
               @if (settingsStore.modelsError()) {
                 <p-message severity="warn" size="small">{{ settingsStore.modelsError() }}</p-message>
               } @else if (selectedModelUnavailable()) {
                 <p-message severity="warn" size="small">
                   El modelo guardado ya no está disponible para tu key. Elige otro o vuelve al modelo por defecto.
                 </p-message>
+              } @else if (selectedModelLacksActions()) {
+                <p class="model-hint">
+                  <i class="pi pi-info-circle"></i>
+                  Con este modelo el asistente solo responde preguntas: no puede crear notas, añadir etiquetas ni
+                  recordar cosas. Para eso, elige un modelo con la etiqueta «Acciones».
+                </p>
               }
             </div>
           }
+        </p-card>
+
+        <!-- ─── Memoria ─────────────────────────────────────────────── -->
+        <p-card id="memoria">
+          <div class="section-header">
+            <i class="pi pi-lightbulb"></i>
+            <h3>Memoria</h3>
+          </div>
+          <p class="section-description">
+            Lo que el asistente sabe de ti y tiene en cuenta en todas sus respuestas: preferencias, contexto, objetivos.
+            También puedes pedirle en el chat que recuerde algo.
+          </p>
+          <app-memory-settings />
         </p-card>
 
         <!-- ─── Atajo de iOS ─────────────────────────────────────────── -->
@@ -366,13 +412,18 @@ export class SettingsPage implements OnInit {
     const ai = this.settingsStore.settings()?.ai;
     if (!ai) return [];
 
+    const models = this.settingsStore.models();
     const options: ModelOption[] = [
-      { label: `Por defecto (${ai.defaultGroqModel})`, value: null },
-      ...this.settingsStore.models().map((model) => ({ label: model, value: model })),
+      {
+        label: `Por defecto (${ai.defaultGroqModel})`,
+        value: null,
+        supportsActions: models.find((m) => m.id === ai.defaultGroqModel)?.supportsActions,
+      },
+      ...models.map((model) => ({ label: model.id, value: model.id, supportsActions: model.supportsActions })),
     ];
 
     // Keep the saved model selectable/visible even if Groq stopped listing it.
-    if (ai.groqModel && !this.settingsStore.models().includes(ai.groqModel)) {
+    if (ai.groqModel && !models.some((m) => m.id === ai.groqModel)) {
       options.push({ label: `${ai.groqModel} (no disponible)`, value: ai.groqModel });
     }
     return options;
@@ -384,8 +435,16 @@ export class SettingsPage implements OnInit {
       !!model &&
       !this.settingsStore.modelsLoading() &&
       this.settingsStore.models().length > 0 &&
-      !this.settingsStore.models().includes(model)
+      !this.settingsStore.models().some((m) => m.id === model)
     );
+  });
+
+  /** specs/user-settings "Action support shown in the picker": only said when known for sure. */
+  protected readonly selectedModelLacksActions = computed(() => {
+    const ai = this.settingsStore.settings()?.ai;
+    if (!ai || this.settingsStore.modelsLoading()) return false;
+    const selected = ai.groqModel ?? ai.defaultGroqModel;
+    return this.settingsStore.models().find((m) => m.id === selected)?.supportsActions === false;
   });
 
   async ngOnInit(): Promise<void> {

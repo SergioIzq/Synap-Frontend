@@ -46,10 +46,14 @@ describe('SettingsService', () => {
     expect((await promise).hasGroqKey).toBe(false);
   });
 
-  it('listModels() returns the model ids', async () => {
+  it('listModels() returns the models and whether they support actions', async () => {
+    const models = [
+      { id: 'a', supportsActions: true },
+      { id: 'b', supportsActions: false },
+    ];
     const promise = firstValueFrom(service.listModels());
-    http.expectOne({ method: 'GET', url: `${base}/ai/models` }).flush({ value: ['a', 'b'] });
-    expect(await promise).toEqual(['a', 'b']);
+    http.expectOne({ method: 'GET', url: `${base}/ai/models` }).flush({ value: models });
+    expect(await promise).toEqual(models);
   });
 
   it('setModel(null) resets to the default model', async () => {

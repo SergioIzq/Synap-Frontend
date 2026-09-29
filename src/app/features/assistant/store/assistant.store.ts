@@ -20,7 +20,7 @@ export const MAX_STORED_MESSAGES = 50;
 /** How many note/tag conversations are kept; the least recently used go first. */
 export const MAX_SCOPED_CONVERSATIONS = 20;
 
-/** Earlier turns sent with a scoped question (scoped-assistant: short memory). */
+/** Earlier turns sent with every question, global or scoped: the conversation's short memory. */
 export const HISTORY_TURNS = 3;
 
 export interface Conversation {
@@ -84,7 +84,7 @@ export class AssistantStore {
     const scope = this._scope();
     // Captured now: the user may switch scope while the answer is on its way.
     const key = scopeKey(scope);
-    const history = scope.kind === 'global' ? [] : recentTurns(this._conversations()[key]?.messages ?? []);
+    const history = recentTurns(this._conversations()[key]?.messages ?? []);
     const pending: ChatMessage = { question, answer: null, pending: true };
 
     this._error.set(null);

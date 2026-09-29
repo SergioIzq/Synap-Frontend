@@ -8,6 +8,13 @@ export interface AiSettings {
   defaultGroqModel: string;
 }
 
+/** A chat model the user's key can use (specs/user-settings "Choose the assistant model"). */
+export interface LlmModel {
+  id: string;
+  /** Whether the assistant can perform actions (create notes, tag, remember) with it. */
+  supportsActions: boolean;
+}
+
 export interface UserSettings {
   email: string;
   ai: AiSettings;

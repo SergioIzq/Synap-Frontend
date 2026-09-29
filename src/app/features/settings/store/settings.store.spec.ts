@@ -12,6 +12,10 @@ const NO_KEY: AiSettings = {
   groqModel: null,
   defaultGroqModel: 'default-model',
 };
+const MODELS = [
+  { id: 'model-a', supportsActions: true },
+  { id: 'model-b', supportsActions: false },
+];
 const WITH_KEY: AiSettings = { ...NO_KEY, hasGroqKey: true, groqKeyMasked: 'gsk_…a1B2' };
 
 function apiError(status: number, message?: string) {
@@ -27,7 +31,7 @@ describe('SettingsStore', () => {
       get: vi.fn(() => of({ email: 'a@b.c', ai: NO_KEY })),
       saveGroqKey: vi.fn(() => of(WITH_KEY)),
       deleteGroqKey: vi.fn(() => of(NO_KEY)),
-      listModels: vi.fn(() => of(['model-a', 'model-b'])),
+      listModels: vi.fn(() => of(MODELS)),
       setModel: vi.fn((model: string | null) => of({ ...WITH_KEY, groqModel: model })),
     };
     TestBed.configureTestingModule({ providers: [{ provide: SettingsService, useValue: service }] });
@@ -53,7 +57,7 @@ describe('SettingsStore', () => {
     await store.saveGroqKey('gsk_valid');
     expect(service.saveGroqKey).toHaveBeenCalledWith('gsk_valid');
     expect(store.hasGroqKey()).toBe(true);
-    expect(store.models()).toEqual(['model-a', 'model-b']);
+    expect(store.models()).toEqual(MODELS);
     expect(store.saving()).toBe(false);
   });
 

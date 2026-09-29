@@ -12,7 +12,7 @@ import { AssistantAnswer, Note, NoteType } from '../../../core/models';
 import { AuthStore } from '../../../core/stores/auth.store';
 import { SettingsStore } from '../../settings/store/settings.store';
 import { AssistantStore } from '../store/assistant.store';
-import { AssistantPage, noteLabel, quickActions, scopeToken } from './assistant.page';
+import { AssistantPage, actionChip, noteLabel, quickActions, scopeToken } from './assistant.page';
 
 const note = (id: string, type: NoteType = 'text', title: string | null = 'Arreglo CORS'): Note => ({
   id,
@@ -55,6 +55,30 @@ describe('assistant page helpers', () => {
     expect(quickActions({ kind: 'note', noteId: 'n', noteType: 'codeSnippet' })).toContain('Explícame este código paso a paso');
     expect(quickActions({ kind: 'note', noteId: 'n', noteType: 'bookmark' })).toEqual([]);
     expect(quickActions({ kind: 'tag', tag: 'python' })).toContain('Resume lo que sé sobre #python');
+  });
+});
+
+describe('action chips', () => {
+  it('describes each action type and links it to its note or to Memoria', () => {
+    expect(actionChip({ type: 'noteCreated', noteId: 'n1', title: 'Renovar SSL' })).toEqual({
+      label: 'Nota creada: Renovar SSL',
+      icon: 'pi pi-file-plus',
+      link: ['/app/notes', 'n1'],
+    });
+    expect(actionChip({ type: 'tagsAdded', noteId: 'n2', title: 'Volúmenes', tags: ['docker'] })).toMatchObject({
+      label: 'Etiqueta #docker añadida a Volúmenes',
+      icon: 'pi pi-tag',
+      link: ['/app/notes', 'n2'],
+    });
+    expect(actionChip({ type: 'tagsAdded', noteId: 'n2', title: null, tags: ['a', 'b'] }).label).toBe(
+      'Etiquetas #a #b añadidas a una nota',
+    );
+    expect(actionChip({ type: 'memorySaved', text: 'prefiero respuestas cortas' })).toEqual({
+      label: 'Recordado: prefiero respuestas cortas',
+      icon: 'pi pi-lightbulb',
+      link: ['/app/settings'],
+      fragment: 'memoria',
+    });
   });
 });
 
@@ -232,5 +256,60 @@ describe('AssistantPage scopes', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  describe('actions under an answer', () => {
+    async function answerWith(extra: Partial<AssistantAnswer>) {
+      ask.mockReturnValue(of(answer(extra)));
+      const harness = await open('/assistant');
+      const page = harness.routeDebugElement!.componentInstance as { askSuggestion(q: string): void };
+      page.askSuggestion('apúntame algo');
+      await settle(harness);
+      return harness;
+    }
+
+    const actionLinks = (harness: RouterTestingHarness) =>
+      [...harness.routeNativeElement!.querySelectorAll('.done-actions a')].map((a) => ({
+        text: a.textContent?.trim(),
+        href: a.getAttribute('href'),
+      }));
+
+    it('shows each action as a chip linking to its note or to Memoria', async () => {
+      const harness = await answerWith({
+        actions: [
+          { type: 'noteCreated', noteId: 'n1', title: 'Renovar SSL' },
+          { type: 'tagsAdded', noteId: 'n2', title: 'Volúmenes', tags: ['docker'] },
+          { type: 'memorySaved', text: 'prefiero respuestas cortas' },
+        ],
+      });
+
+      expect(actionLinks(harness)).toEqual([
+        { text: 'Nota creada: Renovar SSL', href: '/app/notes/n1' },
+        { text: 'Etiqueta #docker añadida a Volúmenes', href: '/app/notes/n2' },
+        { text: 'Recordado: prefiero respuestas cortas', href: '/app/settings#memoria' },
+      ]);
+      const icons = [...harness.routeNativeElement!.querySelectorAll('.done-actions .p-chip-icon')].map((i) => i.className);
+      expect(icons[0]).toContain('pi-file-plus');
+      expect(icons[1]).toContain('pi-tag');
+      expect(icons[2]).toContain('pi-lightbulb');
+    });
+
+    it('keeps the actions visible when the answer then failed', async () => {
+      const harness = await answerWith({
+        status: 'rateLimited',
+        grounded: false,
+        answer: 'Has alcanzado el límite de Groq.',
+        actions: [{ type: 'noteCreated', noteId: 'n1', title: 'Renovar SSL' }],
+      });
+
+      expect(text(harness)).toContain('Has alcanzado el límite de Groq.');
+      expect(actionLinks(harness)).toEqual([{ text: 'Nota creada: Renovar SSL', href: '/app/notes/n1' }]);
+    });
+
+    it('shows nothing when there were no actions', async () => {
+      const harness = await answerWith({ actions: [] });
+
+      expect(harness.routeNativeElement!.querySelector('.done-actions')).toBeNull();
+    });
   });
 });

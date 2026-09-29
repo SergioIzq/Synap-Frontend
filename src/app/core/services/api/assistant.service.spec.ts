@@ -24,9 +24,15 @@ describe('AssistantService', () => {
     return body;
   }
 
-  it('sends only the question when unscoped, as before', async () => {
-    const body = await bodyOf(firstValueFrom(service.ask('¿q?', { kind: 'global' }, [{ question: 'x', answer: 'y' }])));
+  it('sends only the question for a new global conversation', async () => {
+    const body = await bodyOf(firstValueFrom(service.ask('¿q?', { kind: 'global' })));
     expect(body).toEqual({ question: '¿q?' });
+  });
+
+  it('sends the history of a global conversation too (assistant-agent-foundations)', async () => {
+    const history = [{ question: 'x', answer: 'y' }];
+    const body = await bodyOf(firstValueFrom(service.ask('¿q?', { kind: 'global' }, history)));
+    expect(body).toEqual({ question: '¿q?', history });
   });
 
   it('sends a note scope with the recent history', async () => {

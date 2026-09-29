@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subject, catchError, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
 import { InputGroupModule } from 'primeng/inputgroup';
@@ -22,7 +23,14 @@ import { ChipModule } from 'primeng/chip';
 import { NotificationService } from '../../../core/services/notification.service';
 import { MarkdownService } from '../../../core/services/markdown.service';
 import { NoteService } from '../../../core/services/api/note.service';
-import { AssistantAnswer, AssistantScope, GLOBAL_SCOPE, Note, SETTINGS_FIXABLE_STATUSES } from '../../../core/models';
+import {
+  AssistantAction,
+  AssistantAnswer,
+  AssistantScope,
+  GLOBAL_SCOPE,
+  Note,
+  SETTINGS_FIXABLE_STATUSES,
+} from '../../../core/models';
 import { NotesStore } from '../../notes/store/notes.store';
 import { SettingsStore } from '../../settings/store/settings.store';
 import { AssistantStore } from '../store/assistant.store';
@@ -62,6 +70,35 @@ export function quickActions(scope: AssistantScope): string[] {
   }
 }
 
+/** How an action is shown under its answer: label, icon and where selecting it leads. */
+export interface ActionChip {
+  label: string;
+  icon: string;
+  link: string[];
+  fragment?: string;
+}
+
+/** specs/ai-assistant "Actions shown in the answer". */
+export function actionChip(action: AssistantAction): ActionChip {
+  const note = action.title?.trim() || 'una nota';
+  const noteLink = action.noteId ? ['/app/notes', action.noteId] : ['/app/notes'];
+  switch (action.type) {
+    case 'noteCreated':
+      return { label: `Nota creada: ${note}`, icon: 'pi pi-file-plus', link: noteLink };
+    case 'tagsAdded': {
+      const tags = (action.tags ?? []).map((tag) => `#${tag}`).join(' ');
+      const plural = (action.tags?.length ?? 0) > 1;
+      return {
+        label: `${plural ? 'Etiquetas' : 'Etiqueta'} ${tags} ${plural ? 'añadidas' : 'añadida'} a ${note}`,
+        icon: 'pi pi-tag',
+        link: noteLink,
+      };
+    }
+    case 'memorySaved':
+      return { label: `Recordado: ${action.text ?? ''}`.trim(), icon: 'pi pi-lightbulb', link: ['/app/settings'], fragment: 'memoria' };
+  }
+}
+
 interface PickerOption {
   label: string;
   hint?: string;
@@ -74,6 +111,7 @@ interface PickerOption {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Eager,
   imports: [
+    NgTemplateOutlet,
     ReactiveFormsModule,
     RouterLink,
     InputGroupModule,
@@ -110,6 +148,17 @@ interface PickerOption {
 
       a { text-decoration: none; }
       ::ng-deep .p-chip { cursor: pointer; font-size: 0.8rem; }
+    }
+
+    .done-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.6rem;
+
+      a { text-decoration: none; max-width: 100%; }
+      ::ng-deep .p-chip { cursor: pointer; font-size: 0.8rem; max-width: 100%; }
+      ::ng-deep .p-chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     }
 
     .answer-actions { display: flex; justify-content: flex-end; margin-top: 0.25rem; }
@@ -375,6 +424,7 @@ interface PickerOption {
                         fragment="ai"
                       />
                     }
+                    <ng-container *ngTemplateOutlet="doneActions; context: { $implicit: message.answer }" />
                   </div>
                 </div>
               } @else if (message.answer) {
@@ -405,6 +455,7 @@ interface PickerOption {
                     </p>
                   }
                 }
+                <ng-container *ngTemplateOutlet="doneActions; context: { $implicit: message.answer }" />
                 <div class="answer-actions">
                   <p-button
                     icon="pi pi-copy"
@@ -422,6 +473,20 @@ interface PickerOption {
         </div>
       }
     </div>
+
+    <!-- What the assistant did while answering, kept even when the answer then failed. -->
+    <ng-template #doneActions let-answer>
+      @if (answer.actions?.length) {
+        <div class="done-actions" aria-label="Acciones realizadas">
+          @for (action of answer.actions; track $index) {
+            @let chip = actionChip(action);
+            <a [routerLink]="chip.link" [fragment]="chip.fragment" [attr.aria-label]="chip.label">
+              <p-chip [label]="chip.label" [icon]="chip.icon" />
+            </a>
+          }
+        </div>
+      }
+    </ng-template>
 
     <div class="input-row input-wrap">
       @if (pickerOpen()) {
@@ -484,6 +549,7 @@ export class AssistantPage implements OnInit {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
+  protected readonly actionChip = actionChip;
   protected readonly scope = this.assistantStore.scope;
   protected readonly actions = computed(() => quickActions(this.scope()));
   protected readonly scopeUnsupported = computed(() => {

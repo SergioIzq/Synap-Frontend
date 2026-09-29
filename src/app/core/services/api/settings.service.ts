@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { environment } from '../../../../environments/environment';
-import { AiSettings, ApiResult, UserSettings } from '../../models';
+import { AiSettings, ApiResult, LlmModel, UserSettings } from '../../models';
 
 @Injectable({ providedIn: 'root' })
 export class SettingsService {
@@ -23,8 +23,8 @@ export class SettingsService {
     return this.http.delete<ApiResult<AiSettings>>(`${this.apiUrl}/ai/groq-key`).pipe(map((res) => normalizeAi(res.value)));
   }
 
-  listModels(): Observable<string[]> {
-    return this.http.get<ApiResult<string[]>>(`${this.apiUrl}/ai/models`).pipe(map((res) => res.value));
+  listModels(): Observable<LlmModel[]> {
+    return this.http.get<ApiResult<LlmModel[]>>(`${this.apiUrl}/ai/models`).pipe(map((res) => res.value));
   }
 
   /** Null resets to the server's default model. */

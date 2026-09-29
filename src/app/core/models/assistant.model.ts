@@ -17,6 +17,19 @@ export interface AssistantSource {
   title: string;
 }
 
+/** What the assistant did while answering (assistant-agent-foundations design.md Decision 9). */
+export type AssistantActionType = 'noteCreated' | 'tagsAdded' | 'memorySaved';
+
+export interface AssistantAction {
+  type: AssistantActionType;
+  /** Note actions: the created or tagged note. */
+  noteId?: string | null;
+  title?: string | null;
+  tags?: string[] | null;
+  /** memorySaved: the remembered fact. */
+  text?: string | null;
+}
+
 export interface AssistantAnswer {
   answer: string;
   sourceNoteIds: string[];
@@ -28,6 +41,8 @@ export interface AssistantAnswer {
   partialContext?: boolean | null;
   /** Scoped answers only: what the answer is about. */
   scope?: { noteId?: string | null; tag?: string | null } | null;
+  /** Missing from older backends and from answers stored before actions existed: read as none. */
+  actions?: AssistantAction[] | null;
 }
 
 /**
@@ -53,7 +68,7 @@ export function scopeKey(scope: AssistantScope): string {
   }
 }
 
-/** An earlier question and answer of a scoped conversation, sent for follow-up questions. */
+/** An earlier question and answer of the same conversation, sent for follow-up questions. */
 export interface AssistantTurn {
   question: string;
   answer: string;

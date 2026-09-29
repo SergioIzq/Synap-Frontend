@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, firstValueFrom } from 'rxjs';
 import { SettingsService } from '../../../core/services/api/settings.service';
-import { AiSettings, UserSettings } from '../../../core/models';
+import { AiSettings, LlmModel, UserSettings } from '../../../core/models';
 import { apiErrorMessage } from '../../../core/utils/http-errors';
 
 /**
@@ -16,7 +16,7 @@ export class SettingsStore {
   private readonly settingsService = inject(SettingsService);
 
   private readonly _settings = signal<UserSettings | null>(null);
-  private readonly _models = signal<string[]>([]);
+  private readonly _models = signal<LlmModel[]>([]);
   private readonly _loading = signal(false);
   private readonly _saving = signal(false);
   private readonly _modelsLoading = signal(false);

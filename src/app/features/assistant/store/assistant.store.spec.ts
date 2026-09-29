@@ -195,7 +195,7 @@ describe('AssistantStore', () => {
     expect(storedFor('user-a', 'note:n1').map((m) => m.question)).toEqual(['sobre la nota']);
   });
 
-  it('sends the scope and the last settled turns only for scoped questions', async () => {
+  it('sends the scope and the last settled turns of each conversation', async () => {
     const store = createStore();
     ask.mockImplementation((question: string) => of(answer('ok', `r-${question}`)));
 
@@ -208,9 +208,34 @@ describe('AssistantStore', () => {
       { question: 'q3', answer: 'r-q3' },
     ]);
 
+    // The global conversation has its own turns: none of the tag's.
     store.setScope({ kind: 'global' });
     await store.ask('global');
     expect(ask).toHaveBeenLastCalledWith('global', { kind: 'global' }, []);
+    await store.ask('global 2');
+    expect(ask).toHaveBeenLastCalledWith('global 2', { kind: 'global' }, [{ question: 'global', answer: 'r-global' }]);
+  });
+
+  it('keeps the actions of an answer across a reload', async () => {
+    const store = createStore();
+    const actions = [{ type: 'noteCreated' as const, noteId: 'n9', title: 'Renovar SSL', tags: ['infra'] }];
+    ask.mockReturnValue(of({ ...answer('ok', 'Apuntado.'), actions }));
+
+    await store.ask('apúntame lo del SSL');
+    TestBed.tick(); // storage is written by an effect
+
+    expect(storedFor('user-a')[0].answer?.actions).toEqual(actions);
+
+    // A reload: a fresh store reading what the previous one stored.
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: AssistantService, useValue: { ask } },
+        { provide: SettingsStore, useValue: { load: settingsLoad } },
+        { provide: AuthStore, useValue: { userId } },
+      ],
+    });
+    expect(createStore().messages()[0].answer?.actions).toEqual(actions);
   });
 
   it('delivers a late answer to the scope it was asked in', async () => {
