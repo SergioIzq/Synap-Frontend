@@ -20,6 +20,7 @@ import { SettingsStore } from '../store/settings.store';
 import { formatDateTime } from '../../../core/utils/dates';
 import { AccountSettingsComponent } from '../components/account-settings.component';
 import { MemorySettingsComponent } from '../components/memory-settings.component';
+import { TelegramSettingsComponent } from '../components/telegram-settings.component';
 
 const GROQ_KEYS_URL = 'https://console.groq.com/keys';
 const IOS_SHORTCUT_DOCS_URL = 'https://github.com/SergioIzq/Synap-Workspace/blob/main/docs/ios-shortcut-setup.md';
@@ -49,6 +50,7 @@ interface ModelOption {
     SelectButtonModule,
     AccountSettingsComponent,
     MemorySettingsComponent,
+    TelegramSettingsComponent,
   ],
   styles: [`
     :host { display: block; max-width: 760px; }
@@ -297,6 +299,18 @@ interface ModelOption {
             También puedes pedirle en el chat que recuerde algo.
           </p>
           <app-memory-settings />
+        </p-card>
+
+        <!-- ─── Telegram ─────────────────────────────────────────────── -->
+        <p-card id="telegram">
+          <div class="section-header">
+            <i class="pi pi-send"></i>
+            <h3>Telegram</h3>
+          </div>
+          <p class="section-description">
+            El canal por el que Synap te avisa de tus recordatorios. Conecta tu cuenta una vez y te llegarán ahí.
+          </p>
+          <app-telegram-settings />
         </p-card>
 
         <!-- ─── Atajo de iOS ─────────────────────────────────────────── -->

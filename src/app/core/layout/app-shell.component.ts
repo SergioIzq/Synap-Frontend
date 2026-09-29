@@ -202,6 +202,7 @@ export class AppShellComponent {
   protected readonly mainNav: NavItem[] = [
     { path: '/app/notes', label: 'Notas', icon: 'pi pi-book' },
     { path: '/app/assistant', label: 'Asistente', icon: 'pi pi-comments' },
+    { path: '/app/reminders', label: 'Recordatorios', icon: 'pi pi-bell' },
   ];
   protected readonly settingsNav: NavItem = { path: '/app/settings', label: 'Configuración', icon: 'pi pi-cog' };
   protected readonly allNav: NavItem[] = [...this.mainNav, this.settingsNav];

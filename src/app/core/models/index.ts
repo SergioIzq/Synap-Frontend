@@ -3,3 +3,4 @@ export * from './note.model';
 export * from './assistant.model';
 export * from './settings.model';
 export * from './memory.model';
+export * from './reminder.model';

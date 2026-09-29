@@ -13,6 +13,7 @@ import { AuthStore } from '../../../core/stores/auth.store';
 import { SettingsStore } from '../../settings/store/settings.store';
 import { AssistantStore } from '../store/assistant.store';
 import { AssistantPage, actionChip, noteLabel, quickActions, scopeToken } from './assistant.page';
+import { formatDateTime } from '../../../core/utils/dates';
 
 const note = (id: string, type: NoteType = 'text', title: string | null = 'Arreglo CORS'): Note => ({
   id,
@@ -79,6 +80,37 @@ describe('action chips', () => {
       link: ['/app/settings'],
       fragment: 'memoria',
     });
+  });
+
+  it('shows a created reminder with its moment and links it to Recordatorios', () => {
+    const chip = actionChip({
+      type: 'reminderCreated',
+      text: 'Renovar el certificado SSL',
+      dueAt: '2026-10-03T07:00:00Z',
+    });
+
+    expect(chip.icon).toBe('pi pi-bell');
+    expect(chip.link).toEqual(['/app/reminders']);
+    expect(chip.label).toContain('Recordatorio creado: Renovar el certificado SSL');
+    // The exact moment, in the reader's own timezone, so a wrong date is obvious.
+    expect(chip.label).toContain(formatDateTime('2026-10-03T07:00:00Z'));
+  });
+
+  it('says when a created reminder repeats', () => {
+    const chip = actionChip({
+      type: 'reminderCreated',
+      text: 'Revisar copias',
+      dueAt: '2026-10-05T07:00:00Z',
+      recurrence: 'weekly:0',
+    });
+
+    expect(chip.label).toContain('Todos los lunes');
+  });
+
+  it('describes a reminder with no moment without an empty tail', () => {
+    const chip = actionChip({ type: 'reminderCreated', text: 'Algo' });
+
+    expect(chip.label).toBe('Recordatorio creado: Algo');
   });
 });
 
