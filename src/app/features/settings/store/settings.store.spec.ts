@@ -33,6 +33,8 @@ describe('SettingsStore', () => {
       deleteGroqKey: vi.fn(() => of(NO_KEY)),
       listModels: vi.fn(() => of(MODELS)),
       setModel: vi.fn((model: string | null) => of({ ...WITH_KEY, groqModel: model })),
+      setBriefing: vi.fn(() => of({ enabled: false, hour: null, canBeDelivered: true })),
+      sendBriefingNow: vi.fn(() => of(undefined)),
     };
     TestBed.configureTestingModule({ providers: [{ provide: SettingsService, useValue: service }] });
     store = TestBed.inject(SettingsStore);

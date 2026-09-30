@@ -27,9 +27,30 @@ describe('SettingsService', () => {
   afterEach(() => http.verify());
 
   it('get() unwraps the settings', async () => {
+    const briefing = { enabled: true, hour: 7, canBeDelivered: true };
+    const promise = firstValueFrom(service.get());
+    http.expectOne({ method: 'GET', url: base }).flush({ value: { email: 'a@b.c', ai: AI, briefing } });
+    expect(await promise).toEqual({ email: 'a@b.c', ai: AI, briefing });
+  });
+
+  it('get() reads a response with no briefing block as the briefing being off', async () => {
     const promise = firstValueFrom(service.get());
     http.expectOne({ method: 'GET', url: base }).flush({ value: { email: 'a@b.c', ai: AI } });
-    expect(await promise).toEqual({ email: 'a@b.c', ai: AI });
+    expect((await promise).briefing).toEqual({ enabled: false, hour: null, canBeDelivered: false });
+  });
+
+  it('setBriefing() sends the switch and the hour in a PUT', async () => {
+    const promise = firstValueFrom(service.setBriefing(true, 7));
+    const req = http.expectOne({ method: 'PUT', url: `${base}/briefing` });
+    expect(req.request.body).toEqual({ enabled: true, hour: 7 });
+    req.flush({ value: { enabled: true, hour: 7, canBeDelivered: true } });
+    expect(await promise).toEqual({ enabled: true, hour: 7, canBeDelivered: true });
+  });
+
+  it('sendBriefingNow() issues a POST', async () => {
+    const promise = firstValueFrom(service.sendBriefingNow());
+    http.expectOne({ method: 'POST', url: `${base}/briefing/send` }).flush(null);
+    expect(await promise).toBeUndefined();
   });
 
   it('saveGroqKey() sends the key in the body of a PUT', async () => {

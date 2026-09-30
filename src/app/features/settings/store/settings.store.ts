@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, firstValueFrom } from 'rxjs';
 import { SettingsService } from '../../../core/services/api/settings.service';
-import { AiSettings, LlmModel, UserSettings } from '../../../core/models';
+import { AiSettings, BriefingSettings, LlmModel, UserSettings } from '../../../core/models';
 import { apiErrorMessage } from '../../../core/utils/http-errors';
 
 /**
@@ -33,6 +33,7 @@ export class SettingsStore {
 
   readonly loaded = computed(() => this._settings() !== null);
   readonly hasGroqKey = computed(() => this._settings()?.ai.hasGroqKey ?? false);
+  readonly briefing = computed(() => this._settings()?.briefing ?? null);
 
   async load(): Promise<void> {
     this._loading.set(true);
@@ -76,6 +77,34 @@ export class SettingsStore {
       this._modelsError.set(extractErrorMessage(err, 'No se pudieron cargar los modelos disponibles.'));
     } finally {
       this._modelsLoading.set(false);
+    }
+  }
+
+  /** Turns the morning briefing on or off and sets the local hour it arrives (specs/briefing). */
+  async setBriefing(enabled: boolean, hour: number | null): Promise<void> {
+    this._saving.set(true);
+    try {
+      const briefing = await firstValueFrom(this.settingsService.setBriefing(enabled, hour));
+      this._settings.update((settings) => (settings ? { ...settings, briefing } : settings));
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, 'No se pudo guardar el briefing.'));
+    } finally {
+      this._saving.set(false);
+    }
+  }
+
+  /**
+   * Sends the briefing now. Nothing in the stored settings changes: asking for one never consumes
+   * the day's automatic briefing (specs/briefing "Asking does not consume the day").
+   */
+  async sendBriefingNow(): Promise<void> {
+    this._saving.set(true);
+    try {
+      await firstValueFrom(this.settingsService.sendBriefingNow());
+    } catch (err) {
+      throw new Error(extractErrorMessage(err, 'No se pudo enviar el briefing.'));
+    } finally {
+      this._saving.set(false);
     }
   }
 

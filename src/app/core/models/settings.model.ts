@@ -15,7 +15,20 @@ export interface LlmModel {
   supportsActions: boolean;
 }
 
+/**
+ * The "briefing" block of GET /api/settings (specs/briefing). `canBeDelivered` is false when no
+ * Telegram chat is linked, which is the only part of a briefing not arriving that the user can
+ * fix themselves.
+ */
+export interface BriefingSettings {
+  enabled: boolean;
+  /** The local hour it arrives, 0-23. Null when one was never chosen. */
+  hour: number | null;
+  canBeDelivered: boolean;
+}
+
 export interface UserSettings {
   email: string;
   ai: AiSettings;
+  briefing: BriefingSettings;
 }

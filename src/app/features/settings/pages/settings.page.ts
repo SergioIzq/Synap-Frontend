@@ -20,6 +20,7 @@ import { SettingsStore } from '../store/settings.store';
 import { formatDateTime } from '../../../core/utils/dates';
 import { AccountSettingsComponent } from '../components/account-settings.component';
 import { MemorySettingsComponent } from '../components/memory-settings.component';
+import { BriefingSettingsComponent } from '../components/briefing-settings.component';
 import { TelegramSettingsComponent } from '../components/telegram-settings.component';
 
 const GROQ_KEYS_URL = 'https://console.groq.com/keys';
@@ -51,6 +52,7 @@ interface ModelOption {
     AccountSettingsComponent,
     MemorySettingsComponent,
     TelegramSettingsComponent,
+    BriefingSettingsComponent,
   ],
   styles: [`
     :host { display: block; max-width: 760px; }
@@ -299,6 +301,18 @@ interface ModelOption {
             También puedes pedirle en el chat que recuerde algo.
           </p>
           <app-memory-settings />
+        </p-card>
+
+        <!-- ─── Briefing diario ──────────────────────────────────────── -->
+        <p-card id="briefing">
+          <div class="section-header">
+            <i class="pi pi-sun"></i>
+            <h3>Briefing diario</h3>
+          </div>
+          <p class="section-description">
+            Lo que tienes por delante cada mañana, sin tener que preguntarlo. Llega por Telegram.
+          </p>
+          <app-briefing-settings />
         </p-card>
 
         <!-- ─── Telegram ─────────────────────────────────────────────── -->
