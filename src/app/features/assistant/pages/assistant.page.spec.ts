@@ -20,6 +20,7 @@ const note = (id: string, type: NoteType = 'text', title: string | null = 'Arreg
   title,
   content: 'Reinicia la API con **LocalhostPolicy**.',
   type,
+  status: null,
   createdAt: '',
   updatedAt: '',
   tags: [],

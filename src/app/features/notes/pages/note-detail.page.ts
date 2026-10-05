@@ -20,6 +20,7 @@ import { RelativeTimePipe } from '../../../shared/pipes/relative-time.pipe';
 import { NotesStore } from '../store/notes.store';
 import { tagSuggestions } from '../../../shared/tag-suggestions';
 import { NoteRemindersComponent } from '../../reminders/components/note-reminders.component';
+import { NoteStatusControlComponent } from '../components/note-status-control.component';
 
 const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
   text: { icon: 'pi pi-align-left', label: 'Texto' },
@@ -43,6 +44,7 @@ const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
     TextareaModule,
     RelativeTimePipe,
     NoteRemindersComponent,
+    NoteStatusControlComponent,
   ],
   styles: [`
     :host { display: block; max-width: 900px; }
@@ -70,6 +72,7 @@ const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
 
       .type { color: var(--p-primary-color); font-weight: 600; }
       i { margin-right: 0.25rem; }
+      app-note-status-control i { margin-right: 0; }
     }
 
     pre {
@@ -172,6 +175,7 @@ const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
           <h1 [class.untitled]="!displayTitle(n)">{{ displayTitle(n) ?? 'Sin título' }}</h1>
           <div class="meta">
             <span class="type"><i [class]="meta(n).icon"></i>{{ meta(n).label }}</span>
+            <app-note-status-control [note]="n" [heading]="displayTitle(n) ?? 'la nota'" />
             <span [title]="fullDate(n.createdAt)"><i class="pi pi-calendar"></i>Creada {{ n.createdAt | relativeTime }}</span>
             @if (wasEdited(n)) {
               <span [title]="fullDate(n.updatedAt)"><i class="pi pi-pencil"></i>Editada {{ n.updatedAt | relativeTime }}</span>

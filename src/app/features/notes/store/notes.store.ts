@@ -4,12 +4,25 @@ import { Observable, firstValueFrom, from } from 'rxjs';
 import { NOTES_PAGE_SIZE, NoteService } from '../../../core/services/api/note.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { apiErrorMessage, isHandledGlobally } from '../../../core/utils/http-errors';
-import { CreateNoteRequest, Note, NoteType, UpdateNoteRequest } from '../../../core/models';
+import {
+  CreateNoteRequest,
+  DEFAULT_STATUS_FILTER,
+  Note,
+  NoteStatus,
+  NoteStatusFilterValue,
+  NoteType,
+  UpdateNoteRequest,
+} from '../../../core/models';
 
 export interface NoteFilters {
   term: string | null;
   tag: string | null;
   type: NoteType | null;
+  /**
+   * Which statuses the list asks for, "none" standing for the notes that carry none. Empty means
+   * the default - everything except completed (note-status design.md Decision 4).
+   */
+  status: readonly NoteStatusFilterValue[];
 }
 
 /** Filters plus the page being shown - what the notes list mirrors in its URL. */
@@ -21,7 +34,14 @@ export interface NotesQuery extends NoteFilters {
 export const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 export const DEFAULT_PAGE_SIZE = NOTES_PAGE_SIZE;
 
-export const DEFAULT_QUERY: NotesQuery = { term: null, tag: null, type: null, page: 1, pageSize: DEFAULT_PAGE_SIZE };
+export const DEFAULT_QUERY: NotesQuery = {
+  term: null,
+  tag: null,
+  type: null,
+  status: [],
+  page: 1,
+  pageSize: DEFAULT_PAGE_SIZE,
+};
 
 /**
  * Plain signals, not @ngrx/signals - see design.md Decision 10. The store holds exactly one
@@ -54,6 +74,11 @@ export class NotesStore {
   readonly searchTerm = computed(() => this._query().term);
   readonly tag = computed(() => this._query().tag);
   readonly type = computed(() => this._query().type);
+  readonly status = computed(() => this._query().status);
+  /** What the list is actually showing, with an empty selection resolved to the default. */
+  readonly effectiveStatus = computed<readonly NoteStatusFilterValue[]>(
+    () => (this._query().status.length ? this._query().status : DEFAULT_STATUS_FILTER),
+  );
   readonly page = computed(() => this._query().page);
   readonly pageSize = computed(() => this._query().pageSize);
   readonly pageCount = computed(() => Math.max(1, Math.ceil(this._totalCount() / this._query().pageSize)));
@@ -124,6 +149,20 @@ export class NotesStore {
     await this.mutate(this.noteService.create(request), 'Nota guardada', 'No se pudo crear la nota.');
     // Newest first: the new note is on page 1 of the current filters.
     await this.search({ ...this._query(), page: 1 });
+  }
+
+  /**
+   * Marks, re-marks or clears a note's status (null clears it). The note is reloaded rather than
+   * patched in place, so the list shows whatever the server actually stored - and a note that no
+   * longer matches the current filter disappears on the next search, not silently here.
+   */
+  async setStatus(id: string, status: NoteStatus | null): Promise<void> {
+    await this.mutate(
+      this.noteService.setStatus(id, status),
+      status === null ? 'Estado quitado' : 'Estado actualizado',
+      'No se pudo actualizar el estado.',
+    );
+    await this.reloadNote(id);
   }
 
   async update(id: string, request: UpdateNoteRequest): Promise<void> {

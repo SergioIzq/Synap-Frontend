@@ -13,9 +13,10 @@ import { ConfirmationService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { InputTagsModule } from 'primeng/inputtags';
 import { InputTextModule } from 'primeng/inputtext';
+import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { TextareaModule } from 'primeng/textarea';
-import { NoteType } from '../../../core/models';
+import { NOTE_STATUSES, NOTE_STATUS_LABELS, NoteStatus, NoteType } from '../../../core/models';
 import { NotesStore } from '../store/notes.store';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { tagSuggestions } from '../../../shared/tag-suggestions';
@@ -31,7 +32,15 @@ const MAX_TAGS = 10;
   selector: 'app-note-composer',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [ReactiveFormsModule, ButtonModule, InputTagsModule, InputTextModule, SelectButtonModule, TextareaModule],
+  imports: [
+    ReactiveFormsModule,
+    ButtonModule,
+    InputTagsModule,
+    InputTextModule,
+    SelectModule,
+    SelectButtonModule,
+    TextareaModule,
+  ],
   styles: [`
     :host { display: block; margin-bottom: 1.25rem; }
 
@@ -67,10 +76,12 @@ const MAX_TAGS = 10;
 
     .actions { display: flex; align-items: center; gap: 0.4rem; margin-left: auto; }
     .hint { font-size: 0.75rem; color: var(--p-text-muted-color); }
+    .status ::ng-deep .p-select { min-width: 150px; }
 
     @media (max-width: 767px) {
       .hint { display: none; }
       .footer p-selectbutton { width: 100%; }
+      .status, .status ::ng-deep .p-select { width: 100%; min-width: 0; }
     }
   `],
   template: `
@@ -121,6 +132,19 @@ const MAX_TAGS = 10;
             size="small"
             aria-label="Tipo de nota"
           />
+          <!-- Nothing preselected: a note is material unless the user says it is work. -->
+          <span class="status">
+            <p-select
+              formControlName="status"
+              [options]="statusOptions"
+              optionLabel="label"
+              optionValue="value"
+              placeholder="Sin estado"
+              [showClear]="true"
+              size="small"
+              aria-label="Estado (opcional)"
+            />
+          </span>
           <div class="actions">
             <span class="hint">Ctrl/⌘ + Enter</span>
             <p-button label="Cancelar" severity="secondary" [text]="true" size="small" (onClick)="cancel()" />
@@ -146,11 +170,17 @@ export class NoteComposerComponent {
     { label: 'Enlace', value: 'bookmark' },
   ];
 
+  protected readonly statusOptions: { label: string; value: NoteStatus }[] = NOTE_STATUSES.map((value) => ({
+    label: NOTE_STATUS_LABELS[value],
+    value,
+  }));
+
   protected readonly form = this.formBuilder.group({
     title: this.formBuilder.nonNullable.control(''),
     content: this.formBuilder.nonNullable.control(''),
     tags: this.formBuilder.nonNullable.control<string[]>([]),
     type: this.formBuilder.control<NoteType | null>(null),
+    status: this.formBuilder.control<NoteStatus | null>(null),
   });
 
   protected readonly tags = tagSuggestions(
@@ -191,10 +221,10 @@ export class NoteComposerComponent {
   async save(): Promise<void> {
     if (!this.hasContent() || this.saving()) return;
 
-    const { title, content, tags, type } = this.form.getRawValue();
+    const { title, content, tags, type, status } = this.form.getRawValue();
     this.saving.set(true);
     try {
-      await this.notesStore.create({ type, title: title.trim() || null, content, tags });
+      await this.notesStore.create({ type, title: title.trim() || null, content, tags, status });
       void this.notesStore.loadTags();
       this.close();
     } catch {
@@ -232,7 +262,7 @@ export class NoteComposerComponent {
   }
 
   private close(): void {
-    this.form.reset({ title: '', content: '', tags: [], type: null });
+    this.form.reset({ title: '', content: '', tags: [], type: null, status: null });
     this.tags.reset();
     this.expanded.set(false);
   }

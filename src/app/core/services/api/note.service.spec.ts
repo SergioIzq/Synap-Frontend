@@ -32,6 +32,41 @@ describe('NoteService', () => {
     expect(await promise).toEqual(page);
   });
 
+  it('search() serializes a multi-valued status filter, "none" included', async () => {
+    const promise = firstValueFrom(service.search({ status: ['pending', 'inProgress', 'none'] }));
+    const req = http.expectOne((r) => r.url === `${environment.apiUrl}/notes/search`);
+
+    expect(req.request.params.get('status')).toBe('pending,inProgress,none');
+
+    req.flush({ value: { items: [], page: 1, pageSize: 20, totalCount: 0 } });
+    await promise;
+  });
+
+  it('search() leaves the status out when nothing is selected, so the API applies its default', async () => {
+    const promise = firstValueFrom(service.search({ status: [] }));
+    const req = http.expectOne((r) => r.url === `${environment.apiUrl}/notes/search`);
+
+    expect(req.request.params.has('status')).toBe(false);
+
+    req.flush({ value: { items: [], page: 1, pageSize: 20, totalCount: 0 } });
+    await promise;
+  });
+
+  it('setStatus() patches the note\'s own status endpoint, and null clears it', async () => {
+    const marked = firstValueFrom(service.setStatus('n1', 'inProgress'));
+    const first = http.expectOne(`${environment.apiUrl}/notes/n1/status`);
+    expect(first.request.method).toBe('PATCH');
+    expect(first.request.body).toEqual({ status: 'inProgress' });
+    first.flush({ value: null });
+    await marked;
+
+    const cleared = firstValueFrom(service.setStatus('n1', null));
+    const second = http.expectOne(`${environment.apiUrl}/notes/n1/status`);
+    expect(second.request.body).toEqual({ status: null });
+    second.flush({ value: null });
+    await cleared;
+  });
+
   it('getById() and listTags() unwrap the value', async () => {
     const note = firstValueFrom(service.getById('n1'));
     http.expectOne(`${environment.apiUrl}/notes/n1`).flush({ value: { id: 'n1' } });
