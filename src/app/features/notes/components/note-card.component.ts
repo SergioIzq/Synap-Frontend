@@ -4,6 +4,7 @@ import { TagModule } from 'primeng/tag';
 import { Note, NoteType } from '../../../core/models';
 import { formatDateTime } from '../../../core/utils/dates';
 import { RelativeTimePipe } from '../../../shared/pipes/relative-time.pipe';
+import { NoteStatusControlComponent } from './note-status-control.component';
 
 const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
   text: { icon: 'pi pi-align-left', label: 'Texto' },
@@ -16,25 +17,24 @@ const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
   selector: 'app-note-card',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [RouterLink, TagModule, RelativeTimePipe],
+  imports: [RouterLink, TagModule, RelativeTimePipe, NoteStatusControlComponent],
   styles: [`
-    a {
-      display: block;
+    article {
       margin-bottom: 0.75rem;
       padding: 0.9rem 1rem;
       border: 1px solid var(--p-content-border-color);
       border-radius: var(--p-border-radius-lg, 10px);
       background: var(--p-content-background);
-      color: inherit;
-      text-decoration: none;
       transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 
-      &:hover, &:focus-visible {
+      &:hover, &:focus-within {
         transform: translateY(-2px);
         box-shadow: var(--synap-card-hover-shadow);
         border-color: color-mix(in srgb, var(--p-primary-color) 35%, var(--p-content-border-color));
       }
     }
+
+    a { display: block; color: inherit; text-decoration: none; }
 
     .meta {
       display: flex;
@@ -45,7 +45,9 @@ const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
       color: var(--p-text-muted-color);
 
       .type { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--p-primary-color); font-weight: 600; }
-      .age { margin-left: auto; white-space: nowrap; }
+      /* Type first, then the status control; the age stays pinned to the right of the row. */
+      .spacer { margin-left: auto; }
+      .age { white-space: nowrap; }
     }
 
     .title { font-weight: 650; margin: 0 0 0.25rem; line-height: 1.35; }
@@ -74,51 +76,62 @@ const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
     }
 
     .tags { margin-top: 0.6rem; display: flex; gap: 0.35rem; flex-wrap: wrap; }
+
+    /* At 360px the row still fits: the badge wraps under the type rather than pushing the age out. */
+    @media (max-width: 400px) {
+      .meta { flex-wrap: wrap; }
+      .meta .spacer { margin-left: auto; }
+    }
   `],
   template: `
-    <a [routerLink]="['/app/notes', note.id]" [attr.aria-label]="typeMeta.label + ': ' + heading()">
+    <article>
+      <!-- Outside the link: the status control is a button, and a button inside an anchor is not. -->
       <div class="meta">
         <span class="type"><i [class]="typeMeta.icon"></i>{{ typeMeta.label }}</span>
+        <app-note-status-control [note]="note" [heading]="heading()" />
+        <span class="spacer"></span>
         <span class="age" [title]="fullDate()">{{ note.createdAt | relativeTime }}</span>
       </div>
 
-      @switch (note.type) {
-        @case ('bookmark') {
-          <div class="bookmark">
-            <div class="text">
-              <div class="domain">{{ domain() }}</div>
-              <p class="title">{{ note.metadataTitle ?? note.title ?? note.content }}</p>
-              @if (note.metadataDescription) {
-                <p class="preview">{{ preview(note.metadataDescription, 160) }}</p>
+      <a [routerLink]="['/app/notes', note.id]" [attr.aria-label]="typeMeta.label + ': ' + heading()">
+        @switch (note.type) {
+          @case ('bookmark') {
+            <div class="bookmark">
+              <div class="text">
+                <div class="domain">{{ domain() }}</div>
+                <p class="title">{{ note.metadataTitle ?? note.title ?? note.content }}</p>
+                @if (note.metadataDescription) {
+                  <p class="preview">{{ preview(note.metadataDescription, 160) }}</p>
+                }
+              </div>
+              @if (note.metadataImageUrl) {
+                <img [src]="note.metadataImageUrl" alt="" loading="lazy" />
               }
             </div>
-            @if (note.metadataImageUrl) {
-              <img [src]="note.metadataImageUrl" alt="" loading="lazy" />
+          }
+          @case ('codeSnippet') {
+            @if (note.title) {
+              <p class="title">{{ note.title }}</p>
+            }
+            <pre class="code">{{ preview(note.content, 300) }}</pre>
+          }
+          @default {
+            @if (note.title) {
+              <p class="title">{{ note.title }}</p>
+            }
+            <p class="preview">{{ preview(plainText(note.content), 220) }}</p>
+          }
+        }
+
+        @if (note.tags.length > 0) {
+          <div class="tags">
+            @for (tag of note.tags; track tag) {
+              <p-tag [value]="'#' + tag" severity="secondary" />
             }
           </div>
         }
-        @case ('codeSnippet') {
-          @if (note.title) {
-            <p class="title">{{ note.title }}</p>
-          }
-          <pre class="code">{{ preview(note.content, 300) }}</pre>
-        }
-        @default {
-          @if (note.title) {
-            <p class="title">{{ note.title }}</p>
-          }
-          <p class="preview">{{ preview(plainText(note.content), 220) }}</p>
-        }
-      }
-
-      @if (note.tags.length > 0) {
-        <div class="tags">
-          @for (tag of note.tags; track tag) {
-            <p-tag [value]="'#' + tag" severity="secondary" />
-          }
-        </div>
-      }
-    </a>
+      </a>
+    </article>
   `,
 })
 export class NoteCardComponent {

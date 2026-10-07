@@ -11,6 +11,7 @@ const note = (id: string, tags: string[] = []): Note => ({
   title: null,
   content: id,
   type: 'text',
+  status: null,
   createdAt: '',
   updatedAt: '',
   tags,
@@ -28,7 +29,16 @@ const page = (ids: string[], pageNumber: number, total: number): PagedResult<Not
 
 describe('NotesStore', () => {
   type Mock = ReturnType<typeof vi.fn>;
-  let service: { search: Mock; getById: Mock; listTags: Mock; update: Mock; addTag: Mock; delete: Mock; create: Mock };
+  let service: {
+    search: Mock;
+    getById: Mock;
+    listTags: Mock;
+    update: Mock;
+    addTag: Mock;
+    delete: Mock;
+    create: Mock;
+    setStatus: Mock;
+  };
   let store: NotesStore;
 
   beforeEach(() => {
@@ -41,6 +51,7 @@ describe('NotesStore', () => {
       addTag: vi.fn(() => of(undefined)),
       delete: vi.fn(() => of(undefined)),
       create: vi.fn(() => of('id')),
+      setStatus: vi.fn(() => of(undefined)),
     };
     TestBed.configureTestingModule({
       providers: [
@@ -54,7 +65,7 @@ describe('NotesStore', () => {
   it('search() loads one page with its filters and page size', async () => {
     await store.search({ term: 'x', type: 'codeSnippet', pageSize: 2 });
 
-    expect(service.search).toHaveBeenCalledWith({ term: 'x', tag: null, type: 'codeSnippet', page: 1, pageSize: 2 });
+    expect(service.search).toHaveBeenCalledWith({ term: 'x', tag: null, type: 'codeSnippet', status: [], page: 1, pageSize: 2 });
     expect(store.notes().map((n) => n.id)).toEqual(['a', 'b']);
     expect(store.totalCount()).toBe(3);
     expect(store.pageCount()).toBe(2);
@@ -64,9 +75,40 @@ describe('NotesStore', () => {
     await store.search({ tag: 't', pageSize: 2 });
     await store.search({ tag: 't', page: 2, pageSize: 2 });
 
-    expect(service.search).toHaveBeenLastCalledWith({ term: null, tag: 't', type: null, page: 2, pageSize: 2 });
+    expect(service.search).toHaveBeenLastCalledWith({ term: null, tag: 't', type: null, status: [], page: 2, pageSize: 2 });
     expect(store.notes().map((n) => n.id)).toEqual(['c']);
     expect(store.page()).toBe(2);
+  });
+
+  it('search() carries a status filter and reloading the same query gives the same state back', async () => {
+    const query = { term: 'cors', tag: 't', type: 'text' as const, status: ['pending' as const, 'none' as const], page: 1, pageSize: 2 };
+    await store.search(query);
+
+    expect(service.search).toHaveBeenLastCalledWith(expect.objectContaining({ status: ['pending', 'none'] }));
+    expect(store.status()).toEqual(['pending', 'none']);
+    expect(store.effectiveStatus()).toEqual(['pending', 'none']);
+
+    const reloaded = { ...store.query() };
+    await store.search(reloaded);
+    expect(store.query()).toEqual(reloaded);
+  });
+
+  it('an empty status filter resolves to the default: everything live, completed left out', async () => {
+    await store.search({ pageSize: 2 });
+
+    expect(store.status()).toEqual([]);
+    expect(store.effectiveStatus()).toEqual(['pending', 'inProgress', 'paused', 'none']);
+  });
+
+  it('setStatus() saves the status, reports it in Spanish and reloads the note', async () => {
+    await store.search({ pageSize: 2 });
+
+    await store.setStatus('a', 'inProgress');
+    expect(service.setStatus).toHaveBeenCalledWith('a', 'inProgress');
+    expect(service.getById).toHaveBeenLastCalledWith('a');
+
+    await store.setStatus('a', null);
+    expect(service.setStatus).toHaveBeenLastCalledWith('a', null);
   });
 
   it('a page past the last one falls back to the last page', async () => {
@@ -140,7 +182,7 @@ describe('NotesStore', () => {
     await store.delete('a');
 
     expect(service.delete).toHaveBeenCalledWith('a');
-    expect(service.search).toHaveBeenLastCalledWith({ term: null, tag: 't', type: null, page: 1, pageSize: 2 });
+    expect(service.search).toHaveBeenLastCalledWith({ term: null, tag: 't', type: null, status: [], page: 1, pageSize: 2 });
     expect(store.notes().map((n) => n.id)).toEqual(['b', 'c']);
     expect(store.totalCount()).toBe(2);
   });
@@ -159,7 +201,7 @@ describe('NotesStore', () => {
     await store.search({ tag: 't', page: 2, pageSize: 2 });
     await store.create({ type: 'text', title: null, content: 'nueva', tags: [] });
 
-    expect(service.search).toHaveBeenLastCalledWith({ term: null, tag: 't', type: null, page: 1, pageSize: 2 });
+    expect(service.search).toHaveBeenLastCalledWith({ term: null, tag: 't', type: null, status: [], page: 1, pageSize: 2 });
     expect(store.page()).toBe(1);
   });
 

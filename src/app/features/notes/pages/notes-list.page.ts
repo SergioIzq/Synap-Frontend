@@ -24,8 +24,15 @@ import { SelectModule } from 'primeng/select';
 import { MessageModule } from 'primeng/message';
 import { SkeletonModule } from 'primeng/skeleton';
 import { SelectButtonModule } from 'primeng/selectbutton';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { PaginatorModule, PaginatorState } from 'primeng/paginator';
-import { NoteType } from '../../../core/models';
+import {
+  NOTE_STATUSES,
+  NOTE_STATUS_LABELS,
+  NoteStatusFilterValue,
+  NoteType,
+  WORK_STATUS_FILTER,
+} from '../../../core/models';
 import { DEFAULT_QUERY, NotesQuery, NotesStore, PAGE_SIZE_OPTIONS } from '../store/notes.store';
 import { NoteCardComponent } from '../components/note-card.component';
 import { NoteComposerComponent } from '../components/note-composer.component';
@@ -34,7 +41,23 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 const NOTE_TYPES: readonly NoteType[] = ['text', 'codeSnippet', 'bookmark'];
 
-/** Reads the list's URL (`?q=&tag=&type=&page=&size=`), clamping anything invalid to its default. */
+const STATUS_FILTER_VALUES: readonly NoteStatusFilterValue[] = [...NOTE_STATUSES, 'none'];
+
+/**
+ * Keeps the canonical order and drops anything unknown, so two selections of the same statuses -
+ * from the URL or from the filter control - compare equal.
+ */
+function canonicalStatus(values: readonly string[]): readonly NoteStatusFilterValue[] {
+  return STATUS_FILTER_VALUES.filter((v) => values.includes(v));
+}
+
+/** Unknown values are dropped rather than failing the whole URL, like the type param already is. */
+function statusFromParam(value: string | null): readonly NoteStatusFilterValue[] {
+  if (!value) return [];
+  return canonicalStatus(value.split(',').map((v) => v.trim()));
+}
+
+/** Reads the list's URL (`?q=&tag=&type=&status=&page=&size=`), clamping anything invalid to its default. */
 export function queryFromParams(params: ParamMap): NotesQuery {
   const type = params.get('type') as NoteType | null;
   const page = Number(params.get('page'));
@@ -43,6 +66,7 @@ export function queryFromParams(params: ParamMap): NotesQuery {
     term: params.get('q')?.trim() || null,
     tag: params.get('tag') || null,
     type: type && NOTE_TYPES.includes(type) ? type : null,
+    status: statusFromParam(params.get('status')),
     page: Number.isInteger(page) && page >= 1 ? page : DEFAULT_QUERY.page,
     pageSize: (PAGE_SIZE_OPTIONS as readonly number[]).includes(size) ? size : DEFAULT_QUERY.pageSize,
   };
@@ -54,13 +78,21 @@ export function paramsFromQuery(query: NotesQuery): Params {
     q: query.term || null,
     tag: query.tag || null,
     type: query.type || null,
+    status: query.status.length ? query.status.join(',') : null,
     page: query.page !== DEFAULT_QUERY.page ? query.page : null,
     size: query.pageSize !== DEFAULT_QUERY.pageSize ? query.pageSize : null,
   };
 }
 
 function sameQuery(a: NotesQuery, b: NotesQuery): boolean {
-  return a.term === b.term && a.tag === b.tag && a.type === b.type && a.page === b.page && a.pageSize === b.pageSize;
+  return (
+    a.term === b.term &&
+    a.tag === b.tag &&
+    a.type === b.type &&
+    a.status.join(',') === b.status.join(',') &&
+    a.page === b.page &&
+    a.pageSize === b.pageSize
+  );
 }
 
 const listAnimation = trigger('listAnimation', [
@@ -89,6 +121,7 @@ const listAnimation = trigger('listAnimation', [
     MessageModule,
     SkeletonModule,
     SelectButtonModule,
+    MultiSelectModule,
     PaginatorModule,
     FormsModule,
     NoteCardComponent,
@@ -130,6 +163,10 @@ const listAnimation = trigger('listAnimation', [
       .count { font-size: 0.8rem; color: var(--p-text-muted-color); }
     }
 
+    /* The status filter and its shortcut travel together, before the note count. */
+    .status-filter { display: flex; align-items: center; gap: 0.5rem; }
+    .status-filter ::ng-deep .p-multiselect { min-width: 170px; }
+
     .pager { padding: 0.5rem 0 1rem; }
     .pager ::ng-deep .p-paginator { background: transparent; flex-wrap: wrap; row-gap: 0.25rem; }
     .pager ::ng-deep .p-paginator-current { width: 100%; justify-content: center; text-align: center; order: 9; }
@@ -139,6 +176,8 @@ const listAnimation = trigger('listAnimation', [
       .type-row p-selectbutton { width: 100%; overflow-x: auto; }
       .search-row p-select { width: 100%; }
       .shortcut-hint { display: none; }
+      .status-filter { width: 100%; }
+      .status-filter ::ng-deep .p-multiselect { flex: 1; min-width: 0; }
     }
   `],
   template: `
@@ -182,6 +221,32 @@ const listAnimation = trigger('listAnimation', [
         size="small"
         aria-label="Filtrar por tipo"
       />
+      <!-- Several statuses at once, "sin estado" among them (note-status design.md Decision 4). -->
+      <div class="status-filter">
+        <p-multiselect
+          [options]="statusOptions"
+          [ngModel]="statusSelection()"
+          (ngModelChange)="changeStatus($event)"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Cualquier estado"
+          size="small"
+          display="chip"
+          [showToggleAll]="false"
+          [showClear]="true"
+          aria-label="Filtrar por estado"
+        />
+        <p-button
+          label="Mis tareas"
+          icon="pi pi-list-check"
+          size="small"
+          severity="secondary"
+          [outlined]="true"
+          [disabled]="onlyWorkSelected()"
+          ariaLabel="Filtrar por mis tareas: pendientes, en desarrollo y pausadas"
+          (onClick)="selectWorkStatuses()"
+        />
+      </div>
       @if (notesStore.tag(); as tag) {
         <p-button
           icon="pi pi-sparkles"
@@ -296,8 +361,26 @@ export class NotesListPage implements OnInit, AfterViewInit {
     { label: 'Enlaces', value: 'bookmark' },
   ];
 
+  /** The four statuses plus the notes that carry none - the reference library. */
+  protected readonly statusOptions: { label: string; value: NoteStatusFilterValue }[] = [
+    ...NOTE_STATUSES.map((value) => ({ label: NOTE_STATUS_LABELS[value], value: value as NoteStatusFilterValue })),
+    { label: 'Sin estado', value: 'none' },
+  ];
+
+  /** p-multiselect writes to the array it is given, so it gets a copy of the store's selection. */
+  protected readonly statusSelection = computed<NoteStatusFilterValue[]>(() => [...this.notesStore.status()]);
+
+  /** Whether the "Mis tareas" shortcut is already what is selected. */
+  protected readonly onlyWorkSelected = computed(
+    () => this.notesStore.status().join(',') === WORK_STATUS_FILTER.join(','),
+  );
+
   protected readonly hasFilters = computed(
-    () => !!this.notesStore.searchTerm() || !!this.notesStore.tag() || !!this.notesStore.type(),
+    () =>
+      !!this.notesStore.searchTerm() ||
+      !!this.notesStore.tag() ||
+      !!this.notesStore.type() ||
+      this.notesStore.status().length > 0,
   );
 
   /** "/" focuses search - unless the user is already typing somewhere. */
@@ -314,11 +397,20 @@ export class NotesListPage implements OnInit, AfterViewInit {
 
   protected clearFilters(): void {
     this.searchForm.reset({ term: '', tag: '' });
-    void this.navigate({ ...this.notesStore.query(), term: null, tag: null, type: null, page: 1 });
+    void this.navigate({ ...this.notesStore.query(), term: null, tag: null, type: null, status: [], page: 1 });
   }
 
   protected changeType(type: NoteType | null): void {
     void this.navigate({ ...this.formFilters(), type, page: 1 });
+  }
+
+  /** An empty selection means the API's default: everything live, completed left out. */
+  protected changeStatus(status: readonly NoteStatusFilterValue[] | null): void {
+    void this.navigate({ ...this.formFilters(), status: canonicalStatus(status ?? []), page: 1 });
+  }
+
+  protected selectWorkStatuses(): void {
+    this.changeStatus(WORK_STATUS_FILTER);
   }
 
   protected changePage(event: PaginatorState): void {

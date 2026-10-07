@@ -18,6 +18,7 @@ const note = (id: string, type: NoteType): Note => ({
   title: 'Nota',
   content: type === 'bookmark' ? 'https://example.com' : 'contenido',
   type,
+  status: null,
   createdAt: '2026-09-01T10:00:00',
   updatedAt: '2026-09-01T10:00:00',
   tags: ['docker', 'python'],

@@ -7,6 +7,7 @@ import {
   CreateNoteRequest,
   Note,
   NoteSearchParams,
+  NoteStatus,
   PagedResult,
   QuickCaptureRequest,
   RelatedNote,
@@ -20,11 +21,13 @@ export class NoteService {
   private readonly http = inject(HttpClient);
   private readonly apiUrl = `${environment.apiUrl}/notes`;
 
-  search({ term, tag, type, page = 1, pageSize = NOTES_PAGE_SIZE }: NoteSearchParams): Observable<PagedResult<Note>> {
+  search({ term, tag, type, status, page = 1, pageSize = NOTES_PAGE_SIZE }: NoteSearchParams): Observable<PagedResult<Note>> {
     const params: Record<string, string | number> = { page, pageSize };
     if (term) params['q'] = term;
     if (tag) params['tag'] = tag;
     if (type) params['type'] = type;
+    // Left out when empty, so the API applies its own default rather than being asked for nothing.
+    if (status?.length) params['status'] = status.join(',');
 
     return this.http
       .get<ApiResult<PagedResult<Note>>>(`${this.apiUrl}/search`, { params })
@@ -54,6 +57,14 @@ export class NoteService {
 
   delete(id: string): Observable<void> {
     return this.http.delete<ApiResult>(`${this.apiUrl}/${id}`).pipe(map(() => undefined));
+  }
+
+  /**
+   * Its own endpoint, not part of update(): marking a note is not editing it, and a full PUT would
+   * move the note's last-modified time (note-status design.md Decision 5). Null clears the status.
+   */
+  setStatus(id: string, status: NoteStatus | null): Observable<void> {
+    return this.http.patch<ApiResult>(`${this.apiUrl}/${id}/status`, { status }).pipe(map(() => undefined));
   }
 
   addTag(id: string, tagName: string): Observable<void> {

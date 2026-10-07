@@ -14,6 +14,7 @@ const note = (id: string): Note => ({
   title: `Nota ${id}`,
   content: id,
   type: 'text',
+  status: null,
   createdAt: '',
   updatedAt: '',
   tags: [],
@@ -24,38 +25,54 @@ const note = (id: string): Note => ({
 
 describe('notes list URL state', () => {
   it('reads filters, page and size from the URL', () => {
-    expect(queryFromParams(convertToParamMap({ q: ' cors ', tag: 'x', type: 'codeSnippet', page: '3', size: '50' }))).toEqual({
+    expect(
+      queryFromParams(
+        convertToParamMap({ q: ' cors ', tag: 'x', type: 'codeSnippet', status: 'inProgress,none', page: '3', size: '50' }),
+      ),
+    ).toEqual({
       term: 'cors',
       tag: 'x',
       type: 'codeSnippet',
+      status: ['inProgress', 'none'],
       page: 3,
       pageSize: 50,
     });
   });
 
   it('clamps invalid values to their defaults', () => {
-    expect(queryFromParams(convertToParamMap({ type: 'nope', page: '-2', size: '7' }))).toEqual({
+    expect(queryFromParams(convertToParamMap({ type: 'nope', status: 'nope,pending', page: '-2', size: '7' }))).toEqual({
       term: null,
       tag: null,
       type: null,
+      status: ['pending'],
       page: 1,
       pageSize: 20,
     });
     expect(queryFromParams(convertToParamMap({ page: '2.5' })).page).toBe(1);
   });
 
+  it('round-trips a status filter through the URL in canonical order', () => {
+    const query = queryFromParams(convertToParamMap({ status: 'none,inProgress,pending' }));
+    expect(query.status).toEqual(['pending', 'inProgress', 'none']);
+    expect(queryFromParams(convertToParamMap(paramsFromQuery(query) as Record<string, string>))).toEqual(query);
+  });
+
   it('writes only non-default values', () => {
-    expect(paramsFromQuery({ term: null, tag: null, type: null, page: 1, pageSize: 20 })).toEqual({
+    expect(paramsFromQuery({ term: null, tag: null, type: null, status: [], page: 1, pageSize: 20 })).toEqual({
       q: null,
       tag: null,
       type: null,
+      status: null,
       page: null,
       size: null,
     });
-    expect(paramsFromQuery({ term: 'a', tag: 'b', type: 'bookmark', page: 2, pageSize: 10 })).toEqual({
+    expect(
+      paramsFromQuery({ term: 'a', tag: 'b', type: 'bookmark', status: ['pending', 'none'], page: 2, pageSize: 10 }),
+    ).toEqual({
       q: 'a',
       tag: 'b',
       type: 'bookmark',
+      status: 'pending,none',
       page: 2,
       size: 10,
     });
@@ -116,7 +133,7 @@ describe('NotesListPage', () => {
   it('loads the page and filters in the URL', async () => {
     await open('/notes?page=3&tag=x');
 
-    expect(search).toHaveBeenLastCalledWith({ term: null, tag: 'x', type: null, page: 3, pageSize: 20 });
+    expect(search).toHaveBeenLastCalledWith({ term: null, tag: 'x', type: null, status: [], page: 3, pageSize: 20 });
   });
 
   it('treats an invalid size as 20', async () => {
