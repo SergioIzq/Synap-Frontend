@@ -18,7 +18,7 @@ export interface AssistantSource {
 }
 
 /** What the assistant did while answering (assistant-agent-foundations design.md Decision 9). */
-export type AssistantActionType = 'noteCreated' | 'tagsAdded' | 'memorySaved' | 'reminderCreated';
+export type AssistantActionType = 'noteCreated' | 'tagsAdded' | 'memorySaved' | 'reminderCreated' | 'calendarRead';
 
 export interface AssistantAction {
   type: AssistantActionType;

@@ -113,6 +113,14 @@ describe('action chips', () => {
 
     expect(chip.label).toBe('Recordatorio creado: Algo');
   });
+
+  it('shows a calendar read action with the period text and no link', () => {
+    const chip = actionChip({ type: 'calendarRead', text: 'Calendario consultado: mañana' });
+
+    expect(chip.label).toBe('Calendario consultado: mañana');
+    expect(chip.icon).toBe('pi pi-calendar');
+    expect(chip.link).toBeUndefined();
+  });
 });
 
 describe('AssistantPage scopes', () => {
@@ -343,6 +351,19 @@ describe('AssistantPage scopes', () => {
       const harness = await answerWith({ actions: [] });
 
       expect(harness.routeNativeElement!.querySelector('.done-actions')).toBeNull();
+    });
+
+    it('shows a calendarRead action as a chip without a link', async () => {
+      const harness = await answerWith({
+        actions: [{ type: 'calendarRead', text: 'Calendario consultado: mañana, jueves 23 de octubre' }],
+      });
+
+      // The chip text is visible
+      expect(text(harness)).toContain('Calendario consultado: mañana, jueves 23 de octubre');
+      // No anchor wrapping the calendar chip
+      expect(actionLinks(harness)).toEqual([]);
+      // But the chip itself is rendered in done-actions
+      expect(harness.routeNativeElement!.querySelector('.done-actions')).not.toBeNull();
     });
   });
 });
