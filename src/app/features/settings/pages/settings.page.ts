@@ -21,6 +21,7 @@ import { formatDateTime } from '../../../core/utils/dates';
 import { AccountSettingsComponent } from '../components/account-settings.component';
 import { MemorySettingsComponent } from '../components/memory-settings.component';
 import { BriefingSettingsComponent } from '../components/briefing-settings.component';
+import { CalendarSettingsComponent } from '../components/calendar-settings.component';
 import { TelegramSettingsComponent } from '../components/telegram-settings.component';
 
 const GROQ_KEYS_URL = 'https://console.groq.com/keys';
@@ -51,6 +52,7 @@ interface ModelOption {
     SelectButtonModule,
     AccountSettingsComponent,
     MemorySettingsComponent,
+    CalendarSettingsComponent,
     TelegramSettingsComponent,
     BriefingSettingsComponent,
   ],
@@ -313,6 +315,18 @@ interface ModelOption {
             Lo que tienes por delante cada mañana, sin tener que preguntarlo. Llega por Telegram.
           </p>
           <app-briefing-settings />
+        </p-card>
+
+        <!-- ─── Calendario ───────────────────────────────────────────── -->
+        <p-card id="calendario">
+          <div class="section-header">
+            <i class="pi pi-calendar"></i>
+            <h3>Calendario</h3>
+          </div>
+          <p class="section-description">
+            Lo que tienes en el día, para que el briefing y el asistente lo tengan en cuenta. Synap solo lo lee.
+          </p>
+          <app-calendar-settings />
         </p-card>
 
         <!-- ─── Telegram ─────────────────────────────────────────────── -->

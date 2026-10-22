@@ -84,6 +84,50 @@ describe('SettingsService', () => {
     req.flush({ value: AI });
     await promise;
   });
+
+  // ---- The calendar (calendar-integration task 8.1) ----
+
+  it('calendar() unwraps the connection state', async () => {
+    const connection = { connected: true, kind: 'CalDav', connectedAt: '2026-10-07T09:00:00Z', googleAvailable: true };
+    const promise = firstValueFrom(service.calendar());
+    http.expectOne({ method: 'GET', url: `${base}/calendar` }).flush({ value: connection });
+    expect(await promise).toEqual(connection);
+  });
+
+  it('calendar() reads the properties the API omits when null as not connected', async () => {
+    const promise = firstValueFrom(service.calendar());
+    http.expectOne({ method: 'GET', url: `${base}/calendar` }).flush({ value: { connected: false } });
+    expect(await promise).toEqual({ connected: false, kind: null, connectedAt: null, googleAvailable: false });
+  });
+
+  it('connectCalDavCalendar() posts the server address and the credentials', async () => {
+    const promise = firstValueFrom(service.connectCalDavCalendar('https://cal.example.test/dav/', 'sergio', 'secreto'));
+    const req = http.expectOne({ method: 'POST', url: `${base}/calendar/caldav` });
+    expect(req.request.body).toEqual({ serverUrl: 'https://cal.example.test/dav/', username: 'sergio', password: 'secreto' });
+    req.flush({ value: { connected: true, kind: 'CalDav', connectedAt: '2026-10-07T09:00:00Z', googleAvailable: false } });
+    expect((await promise).kind).toBe('CalDav');
+  });
+
+  it('beginGoogleCalendarAuthorization() returns where to send the user', async () => {
+    const promise = firstValueFrom(service.beginGoogleCalendarAuthorization());
+    const req = http.expectOne({ method: 'POST', url: `${base}/calendar/google/authorize` });
+    req.flush({ value: { authorizationUrl: 'https://accounts.google.com/o/oauth2/auth?state=abc', state: 'abc' } });
+    expect(await promise).toEqual({ authorizationUrl: 'https://accounts.google.com/o/oauth2/auth?state=abc', state: 'abc' });
+  });
+
+  it('connectGoogleCalendar() posts what the user came back with', async () => {
+    const promise = firstValueFrom(service.connectGoogleCalendar('code-from-google', 'abc'));
+    const req = http.expectOne({ method: 'POST', url: `${base}/calendar/google` });
+    expect(req.request.body).toEqual({ code: 'code-from-google', state: 'abc' });
+    req.flush({ value: { connected: true, kind: 'Google', connectedAt: '2026-10-07T09:00:00Z', googleAvailable: true } });
+    expect((await promise).kind).toBe('Google');
+  });
+
+  it('disconnectCalendar() reports it as not connected', async () => {
+    const promise = firstValueFrom(service.disconnectCalendar());
+    http.expectOne({ method: 'DELETE', url: `${base}/calendar` }).flush({ value: { connected: false, googleAvailable: true } });
+    expect(await promise).toEqual({ connected: false, kind: null, connectedAt: null, googleAvailable: true });
+  });
 });
 
 describe('SettingsService null handling', () => {
