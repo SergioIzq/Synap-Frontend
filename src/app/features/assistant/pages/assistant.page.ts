@@ -76,7 +76,8 @@ export function quickActions(scope: AssistantScope): string[] {
 export interface ActionChip {
   label: string;
   icon: string;
-  link: string[];
+  /** Absent for actions with no navigation target (e.g. calendarRead). */
+  link?: string[];
   fragment?: string;
 }
 
@@ -109,6 +110,8 @@ export function actionChip(action: AssistantAction): ActionChip {
         link: ['/app/reminders'],
       };
     }
+    case 'calendarRead':
+      return { label: action.text ?? 'Calendario consultado', icon: 'pi pi-calendar' };
   }
 }
 
@@ -493,9 +496,13 @@ interface PickerOption {
         <div class="done-actions" aria-label="Acciones realizadas">
           @for (action of answer.actions; track $index) {
             @let chip = actionChip(action);
-            <a [routerLink]="chip.link" [fragment]="chip.fragment" [attr.aria-label]="chip.label">
-              <p-chip [label]="chip.label" [icon]="chip.icon" />
-            </a>
+            @if (chip.link) {
+              <a [routerLink]="chip.link" [fragment]="chip.fragment" [attr.aria-label]="chip.label">
+                <p-chip [label]="chip.label" [icon]="chip.icon" />
+              </a>
+            } @else {
+              <p-chip [label]="chip.label" [icon]="chip.icon" [attr.aria-label]="chip.label" style="max-width: 100%" />
+            }
           }
         </div>
       }
