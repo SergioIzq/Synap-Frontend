@@ -27,6 +27,30 @@ export interface BriefingSettings {
   canBeDelivered: boolean;
 }
 
+/** Which of the two forms a connected calendar takes (specs/calendar-integration). */
+export type CalendarKind = 'Google' | 'CalDav';
+
+/**
+ * GET /api/settings/calendar. Deliberately holds no credential of any kind - not even masked: the
+ * API only ever says whether one is connected, which form it is and since when
+ * (specs/calendar-integration "Stored calendar credentials are never disclosed").
+ *
+ * `googleAvailable` is false on a deployment with no OAuth client registered, where the Google way
+ * is not offered at all rather than offered and then refused.
+ */
+export interface CalendarConnection {
+  connected: boolean;
+  kind: CalendarKind | null;
+  connectedAt: string | null;
+  googleAvailable: boolean;
+}
+
+/** POST /api/settings/calendar/google/authorize: where to send the user, and the state to return with. */
+export interface GoogleCalendarAuthorization {
+  authorizationUrl: string;
+  state: string;
+}
+
 export interface UserSettings {
   email: string;
   ai: AiSettings;
