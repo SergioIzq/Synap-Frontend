@@ -1,0 +1,112 @@
+name: CI
+
+# test: en pull requests y en push a main. publish y deploy: solo en push a main.
+# workflow_dispatch con `sha` ejecuta únicamente deploy (rollback o redeploy de un commit ya publicado).
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: SHA completo (40 caracteres) del commit cuya imagen se despliega
+        required: true
+        type: string
+
+# Permisos mínimos por defecto; cada trabajo que necesite más los declara.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Compilar
+        run: npm run build
+
+  publish:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publicar synap-frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/sergioizq/synap-frontend:${{ github.sha }}
+            ghcr.io/sergioizq/synap-frontend:latest
+          cache-from: type=gha,scope=synap-frontend
+          cache-to: type=gha,mode=max,scope=synap-frontend
+
+  deploy:
+    needs: publish
+    # Los trabajos anteriores se omiten en workflow_dispatch; !cancelled() deja que este corra igualmente.
+    if: >-
+      ${{ !cancelled() && (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && needs.publish.result == 'success')
+      ) }}
+    runs-on: ubuntu-latest
+    environment: production
+    # Un despliegue cada vez y sin cancelar el que está en curso.
+    concurrency:
+      group: deploy-production-front
+      cancel-in-progress: false
+    steps:
+      - name: Resolver el SHA a desplegar
+        id: sha
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_SHA: ${{ inputs.sha }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          sha="$PUSH_SHA"
+          [ "$EVENT" = workflow_dispatch ] && sha="$INPUT_SHA"
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::El SHA debe tener 40 caracteres hexadecimales en minúscula"
+            exit 1
+          fi
+          echo "value=$sha" >> "$GITHUB_OUTPUT"
+
+      # La clave de CI solo puede ejecutar scripts/deploy.sh en el VPS (command= en authorized_keys).
+      # VPS_HOST_KEY es la línea de known_hosts del servidor (salida de `ssh-keyscan -t ed25519 <host>`).
+      - name: Desplegar synap-frontend
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST_KEY: ${{ secrets.VPS_HOST_KEY }}
+          SHA: ${{ steps.sha.outputs.value }}
+        run: |
+          install -m 700 -d ~/.ssh
+          (umask 077; printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_deploy)
+          printf '%s\n' "$VPS_HOST_KEY" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" "synap-frontend $SHA"
