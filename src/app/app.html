@@ -6,5 +6,21 @@
      confirmation is needed. -->
 @defer (on idle) {
   <p-toast position="top-center" [preventDuplicates]="true" />
+  <!-- Toast con botón «Ver» para el aviso de conexiones (smart-resurfacing, Decisión 2). -->
+  <p-toast key="action" position="top-center" [preventDuplicates]="true">
+    <ng-template #headless let-message let-closeFn="closeFn">
+      <div class="synap-action-toast">
+        <i class="pi pi-info-circle synap-action-toast__icon" aria-hidden="true"></i>
+        <span class="synap-action-toast__text">{{ message?.summary }}</span>
+        <button type="button" class="synap-action-toast__btn"
+          (click)="message?.data?.onAction?.(); closeFn($event)">
+          {{ message?.data?.actionLabel ?? 'Ver' }}
+        </button>
+        <button type="button" class="synap-action-toast__close" aria-label="Cerrar" (click)="closeFn($event)">
+          <i class="pi pi-times"></i>
+        </button>
+      </div>
+    </ng-template>
+  </p-toast>
   <p-confirmdialog [style]="{ width: 'min(420px, calc(100vw - 2rem))' }" />
 }

@@ -1,8 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { map } from 'rxjs';
+import { Subject, map } from 'rxjs';
 import { ConfirmationService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { InputTagsModule } from 'primeng/inputtags';
@@ -12,6 +12,7 @@ import { SkeletonModule } from 'primeng/skeleton';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { Note, NoteType, RelatedNote } from '../../../core/models';
+import { pollUntilReady } from '../../../core/utils/poll';
 import { NoteService } from '../../../core/services/api/note.service';
 import { MarkdownService } from '../../../core/services/markdown.service';
 import { NotificationService } from '../../../core/services/notification.service';
@@ -229,10 +230,10 @@ const TYPE_META: Record<NoteType, { icon: string; label: string }> = {
         <app-note-reminders [noteId]="n.id" />
       }
 
-      @if (relatedNotes().length > 0 && !editing()) {
+      @if ((connections()?.length ?? 0) > 0 && !editing()) {
         <section class="related">
-          <h3>Notas relacionadas</h3>
-          @for (related of relatedNotes(); track related.id) {
+          <h3>Conexiones</h3>
+          @for (related of connections()!; track related.id) {
             <a [routerLink]="['/app/notes', related.id]">{{ related.title ?? preview(related.content) }}</a>
           }
         </section>
@@ -258,6 +259,10 @@ export class NoteDetailPage {
   private readonly router = inject(Router);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly formBuilder = inject(FormBuilder);
+  private readonly destroyRef = inject(DestroyRef);
+
+  /** Cancela el sondeo de conexiones activo al cambiar de nota o destruir el componente. */
+  private readonly cancelConnections$ = new Subject<void>();
 
   /** Follows the route: moving to a related note reuses this component with a new id. */
   private readonly newTags = signal<string[]>([]);
@@ -267,7 +272,8 @@ export class NoteDetailPage {
   });
 
   protected readonly note = computed(() => this.notesStore.noteById(this.noteId()));
-  protected readonly relatedNotes = signal<RelatedNote[]>([]);
+  /** null = sondeo en curso; [] = sin conexiones; [...] = conexiones listas. */
+  protected readonly connections = signal<RelatedNote[] | null>(null);
   protected readonly loading = signal(true);
   protected readonly editing = signal(false);
   protected readonly saving = signal(false);
@@ -289,6 +295,8 @@ export class NoteDetailPage {
   protected readonly highlightedContent = computed(() => this.markdownService.highlightCode(this.note()?.content ?? ''));
 
   constructor() {
+    this.destroyRef.onDestroy(() => this.cancelConnections$.complete());
+
     this.editForm.controls.newTags.valueChanges.pipe(takeUntilDestroyed()).subscribe((tags) => {
       this.newTags.set(tags);
       this.tags.reset(); // PrimeNG clears the field after adding a chip without an input event.
@@ -302,18 +310,27 @@ export class NoteDetailPage {
 
   private async load(id: string): Promise<void> {
     this.editing.set(false);
-    this.relatedNotes.set([]);
+    this.connections.set(null);
+    this.cancelConnections$.next(); // cancela el sondeo anterior
     this.loading.set(true);
+
+    // smart-resurfacing Decisión 4: registrar apertura sin bloquear ni propagar error
+    this.noteService.markViewed(id).subscribe({ error: () => {} });
 
     // The list is paged and may be filtered: a note opened from an assistant source, a related
     // note or a direct link is fetched by id when it isn't among the loaded ones.
     await this.notesStore.ensureNote(id);
     this.loading.set(false);
 
-    // specs/ai-assistant "Semantic relations" - best-effort, empty panel is fine on failure
-    this.noteService.getRelated(id).subscribe({
-      next: (related) => this.relatedNotes.set(related),
-      error: () => this.relatedNotes.set([]),
+    // smart-resurfacing Decisión 3: conexiones con sondeo, cancelado al cambiar de nota o salir
+    pollUntilReady(
+      () => this.noteService.getConnections(id),
+      (v) => v.status === 'pending',
+      this.cancelConnections$,
+    ).pipe(takeUntilDestroyed(this.destroyRef))
+     .subscribe({
+      next: (v) => { if (v.status === 'ready') this.connections.set(v.notes); },
+      error: () => this.connections.set([]),
     });
   }
 

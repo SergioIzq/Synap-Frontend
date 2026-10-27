@@ -1,9 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, firstValueFrom, from } from 'rxjs';
+import { NEVER, Observable, firstValueFrom, from } from 'rxjs';
+import { Router } from '@angular/router';
 import { NOTES_PAGE_SIZE, NoteService } from '../../../core/services/api/note.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { apiErrorMessage, isHandledGlobally } from '../../../core/utils/http-errors';
+import { pollUntilReady } from '../../../core/utils/poll';
 import {
   CreateNoteRequest,
   DEFAULT_STATUS_FILTER,
@@ -53,6 +55,7 @@ export const DEFAULT_QUERY: NotesQuery = {
 export class NotesStore {
   private readonly noteService = inject(NoteService);
   private readonly notifications = inject(NotificationService);
+  private readonly router = inject(Router);
 
   private readonly _notes = signal<Note[]>([]);
   private readonly _opened = signal<Record<string, Note>>({});
@@ -146,9 +149,40 @@ export class NotesStore {
   }
 
   async create(request: CreateNoteRequest): Promise<void> {
-    await this.mutate(this.noteService.create(request), 'Nota guardada', 'No se pudo crear la nota.');
+    let noteId: string;
+    try {
+      noteId = await firstValueFrom(this.noteService.create(request));
+      this.notifications.success('Nota guardada');
+    } catch (err) {
+      if (!isHandledGlobally(err)) {
+        this.notifications.error(apiErrorMessage(err, 'No se pudo crear la nota.'));
+      }
+      throw err;
+    }
     // Newest first: the new note is on page 1 of the current filters.
     await this.search({ ...this._query(), page: 1 });
+    // smart-resurfacing Decisión 2: sondeo sin bloquear, toast si hay conexiones.
+    this.pollConnectionsAfterCreate(noteId);
+  }
+
+  private pollConnectionsAfterCreate(noteId: string): void {
+    pollUntilReady(
+      () => this.noteService.getConnections(noteId),
+      (v) => v.status === 'pending',
+      NEVER,
+    ).subscribe({
+      next: (connections) => {
+        if (connections.status !== 'ready' || connections.notes.length === 0) return;
+        const n = connections.notes.length;
+        const topic = connections.topic;
+        const plural = n > 1 ? 's' : '';
+        const summary = topic
+          ? `Se relaciona con ${n} nota${plural} tuya${plural} sobre #${topic}`
+          : `Se relaciona con ${n} nota${plural} tuya${plural}`;
+        this.notifications.infoWithAction(summary, () => void this.router.navigate(['/app/notes', noteId]));
+      },
+      error: () => { /* Sin toast de error — spec Decision 2 */ },
+    });
   }
 
   /**

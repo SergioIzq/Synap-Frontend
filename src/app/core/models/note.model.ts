@@ -70,6 +70,15 @@ export interface RelatedNote {
   similarity: number;
 }
 
+/** smart-resurfacing: resultado de GET /api/notes/{id}/connections. */
+export type NoteConnectionStatus = 'ready' | 'pending';
+
+export interface NoteConnections {
+  status: NoteConnectionStatus;
+  notes: RelatedNote[];
+  topic: string | null;
+}
+
 /** GET /api/notes/search - one page of results plus the total (backend-hardening). */
 export interface PagedResult<T> {
   items: T[];
