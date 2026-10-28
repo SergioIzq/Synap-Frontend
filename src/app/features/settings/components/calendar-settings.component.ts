@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
 import { ConfirmationService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
@@ -13,14 +12,10 @@ import { NotificationService } from '../../../core/services/notification.service
 import { SettingsStore } from '../store/settings.store';
 
 /**
- * Settings > Calendario: connecting the calendar Synap reads (specs/calendar-integration
- * "Connecting a calendar from the web app"). Two ways in, one state out: once connected, nothing
- * here or anywhere else cares which of the two it is beyond saying so.
+ * Settings > Calendario: connecting the CalDAV calendar Synap reads (specs/calendar-integration
+ * "Connecting a calendar from the web app").
  *
  * No credential is ever displayed, not even masked - the API does not return one to display.
- *
- * The Google way leaves the app and comes back to this same page with a code in the query string,
- * which is why this component also finishes that flow on init.
  */
 @Component({
   selector: 'app-calendar-settings',
@@ -33,10 +28,6 @@ import { SettingsStore } from '../store/settings.store';
     .intro { margin: 0 0 0.75rem; font-size: 0.875rem; color: var(--p-text-muted-color); }
 
     .since { font-size: 0.8125rem; color: var(--p-text-muted-color); }
-
-    .ways { display: grid; gap: 1.1rem; margin-top: 0.9rem; }
-
-    .way h4 { margin: 0 0 0.4rem; font-size: 0.875rem; font-weight: 600; }
 
     .field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.6rem; }
 
@@ -52,8 +43,8 @@ import { SettingsStore } from '../store/settings.store';
     } @else {
       <div class="status">
         @if (store.calendarConnected()) {
-          <p-tag severity="success" [value]="'Conectado · ' + kindLabel()" icon="pi pi-check" />
-          @if (store.calendar()?.connectedAt; as connectedAt) {
+          <p-tag severity="success" value="Conectado · CalDAV" icon="pi pi-check" />
+          @if (store.calendar()?.connection?.connectedAt; as connectedAt) {
             <span class="since">desde el {{ since(connectedAt) }}</span>
           }
         } @else {
@@ -63,6 +54,11 @@ import { SettingsStore } from '../store/settings.store';
 
       @if (store.calendarConnected()) {
         <p class="intro">Synap lee este calendario para preparar tu briefing y responder sobre tu día.</p>
+        @if (store.calendar()?.connection?.needsReconnect) {
+          <p-message severity="warn" styleClass="w-full" style="margin-bottom: 0.75rem">
+            <span>La conexión necesita ser renovada. Vuelve a introducir tus credenciales.</span>
+          </p-message>
+        }
         <div class="buttons">
           <p-button
             label="Desconectar"
@@ -76,69 +72,45 @@ import { SettingsStore } from '../store/settings.store';
         </div>
       } @else {
         <p class="intro">
-          Conecta tu calendario y Synap sabrá qué tienes cada día. Solo lo lee: no guarda ningún evento ni los
+          Conecta tu calendario CalDAV y Synap sabrá qué tienes cada día. Solo lo lee: no guarda ningún evento ni los
           indexa, y nunca escribe en él.
         </p>
 
-        <div class="ways">
-          <div class="way">
-            <h4>Google Calendar</h4>
-            @if (store.calendar()?.googleAvailable) {
-              <div class="buttons">
-                <p-button
-                  label="Conectar con Google"
-                  icon="pi pi-google"
-                  size="small"
-                  [disabled]="store.saving()"
-                  (onClick)="connectGoogle()"
-                />
-              </div>
-            } @else {
-              <p-message severity="secondary" styleClass="w-full">
-                <span>La conexión con Google Calendar no está disponible en este despliegue.</span>
-              </p-message>
-            }
+        <form [formGroup]="form" (ngSubmit)="connectCalDav()">
+          <div class="field">
+            <label for="caldav-url">Dirección del servidor</label>
+            <input
+              pInputText
+              id="caldav-url"
+              formControlName="serverUrl"
+              placeholder="https://calendario.ejemplo.com/dav/"
+              autocomplete="off"
+            />
           </div>
-
-          <div class="way">
-            <h4>Calendario CalDAV</h4>
-            <form [formGroup]="form" (ngSubmit)="connectCalDav()">
-              <div class="field">
-                <label for="caldav-url">Dirección del servidor</label>
-                <input
-                  pInputText
-                  id="caldav-url"
-                  formControlName="serverUrl"
-                  placeholder="https://calendario.ejemplo.com/dav/"
-                  autocomplete="off"
-                />
-              </div>
-              <div class="field">
-                <label for="caldav-user">Usuario</label>
-                <input pInputText id="caldav-user" formControlName="username" autocomplete="off" />
-              </div>
-              <div class="field">
-                <label for="caldav-password">Contraseña</label>
-                <p-password
-                  inputId="caldav-password"
-                  formControlName="password"
-                  [feedback]="false"
-                  [toggleMask]="true"
-                  autocomplete="new-password"
-                />
-              </div>
-              <div class="buttons">
-                <p-button
-                  type="submit"
-                  label="Conectar"
-                  icon="pi pi-calendar"
-                  size="small"
-                  [disabled]="form.invalid || store.saving()"
-                />
-              </div>
-            </form>
+          <div class="field">
+            <label for="caldav-user">Usuario</label>
+            <input pInputText id="caldav-user" formControlName="username" autocomplete="off" />
           </div>
-        </div>
+          <div class="field">
+            <label for="caldav-password">Contraseña</label>
+            <p-password
+              inputId="caldav-password"
+              formControlName="password"
+              [feedback]="false"
+              [toggleMask]="true"
+              autocomplete="new-password"
+            />
+          </div>
+          <div class="buttons">
+            <p-button
+              type="submit"
+              label="Conectar"
+              icon="pi pi-calendar"
+              size="small"
+              [disabled]="form.invalid || store.saving()"
+            />
+          </div>
+        </form>
       }
 
       @if (error(); as message) {
@@ -153,8 +125,6 @@ export class CalendarSettingsComponent implements OnInit {
   protected readonly store = inject(SettingsStore);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly notifications = inject(NotificationService);
-  private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly loading = signal(true);
@@ -171,14 +141,9 @@ export class CalendarSettingsComponent implements OnInit {
       await this.store.loadCalendar();
     } catch {
       this.error.set('No se pudo consultar el estado de tu calendario.');
+    } finally {
+      this.loading.set(false);
     }
-
-    await this.finishGoogleIfComingBack();
-    this.loading.set(false);
-  }
-
-  protected kindLabel(): string {
-    return this.store.calendar()?.kind === 'Google' ? 'Google Calendar' : 'CalDAV';
   }
 
   protected since(value: string): string {
@@ -195,48 +160,6 @@ export class CalendarSettingsComponent implements OnInit {
       await this.store.connectCalDavCalendar(serverUrl.trim(), username.trim(), password);
       // The password never stays in the page longer than the request that used it.
       this.form.reset();
-      this.notifications.success('Calendario conectado');
-    });
-  }
-
-  /** Leaves for Google; the user comes back to this page with a code in the query string. */
-  protected async connectGoogle(): Promise<void> {
-    await this.run(async () => {
-      const authorization = await this.store.beginGoogleCalendarAuthorization();
-      sessionStorage.setItem(GOOGLE_STATE_KEY, authorization.state);
-      window.location.href = authorization.authorizationUrl;
-    });
-  }
-
-  /**
-   * specs/calendar-integration "Authorization refused" and "Google calendar connected": whichever
-   * way it went, the query string is cleaned afterwards so a reload does not replay it.
-   */
-  private async finishGoogleIfComingBack(): Promise<void> {
-    const parameters = this.route.snapshot.queryParamMap;
-    const code = parameters.get('code');
-    const state = parameters.get('state') ?? sessionStorage.getItem(GOOGLE_STATE_KEY);
-    const refused = parameters.get('error');
-
-    if (!code && !refused) {
-      return;
-    }
-
-    sessionStorage.removeItem(GOOGLE_STATE_KEY);
-    await this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { code: null, state: null, error: null },
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    });
-
-    if (refused || !code || !state) {
-      this.error.set('No se ha completado la autorización con Google. No se ha conectado ningún calendario.');
-      return;
-    }
-
-    await this.run(async () => {
-      await this.store.connectGoogleCalendar(code, state);
       this.notifications.success('Calendario conectado');
     });
   }
@@ -261,7 +184,6 @@ export class CalendarSettingsComponent implements OnInit {
     });
   }
 
-  /** The server's own Spanish message is what the user reads: it says which of the two went wrong. */
   private async run(action: () => Promise<void>): Promise<void> {
     this.error.set(null);
     try {
@@ -271,6 +193,3 @@ export class CalendarSettingsComponent implements OnInit {
     }
   }
 }
-
-/** Survives the round trip to Google, for the case where it does not hand the state back. */
-const GOOGLE_STATE_KEY = 'synap.calendar.google.state';

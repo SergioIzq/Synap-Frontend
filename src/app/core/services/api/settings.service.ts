@@ -6,8 +6,7 @@ import {
   AiSettings,
   ApiResult,
   BriefingSettings,
-  CalendarConnection,
-  GoogleCalendarAuthorization,
+  CalendarSettings,
   LlmModel,
   UserSettings,
 } from '../../models';
@@ -54,36 +53,28 @@ export class SettingsService {
 
   // ---- The calendar (specs/calendar-integration) ----
 
-  calendar(): Observable<CalendarConnection> {
-    return this.http.get<ApiResult<CalendarConnection>>(this.calendarUrl).pipe(map((res) => normalizeCalendar(res.value)));
+  /**
+   * Reads the calendar block from the full settings response. There is no standalone calendar
+   * endpoint: the calendar connection state is part of GET /api/settings.
+   */
+  calendar(): Observable<CalendarSettings> {
+    return this.http
+      .get<ApiResult<UserSettings>>(this.apiUrl)
+      .pipe(map((res) => normalizeCalendar(res.value.calendar)));
   }
 
   /**
    * Connects a CalDAV calendar. The server reads it before storing anything, so a rejection here
    * means nothing was saved and any previous connection is untouched.
    */
-  connectCalDavCalendar(serverUrl: string, username: string, password: string): Observable<CalendarConnection> {
+  connectCalDavCalendar(url: string, username: string, password: string): Observable<CalendarSettings> {
     return this.http
-      .post<ApiResult<CalendarConnection>>(`${this.calendarUrl}/caldav`, { serverUrl, username, password })
+      .put<ApiResult<CalendarSettings>>(`${this.calendarUrl}/caldav`, { url, username, password })
       .pipe(map((res) => normalizeCalendar(res.value)));
   }
 
-  /** Step one of the Google way: where to send the user, and the state they must come back with. */
-  beginGoogleCalendarAuthorization(): Observable<GoogleCalendarAuthorization> {
-    return this.http
-      .post<ApiResult<GoogleCalendarAuthorization>>(`${this.calendarUrl}/google/authorize`, {})
-      .pipe(map((res) => res.value));
-  }
-
-  /** Step two: the code Google sent the user back with, and the state they left with. */
-  connectGoogleCalendar(code: string, state: string): Observable<CalendarConnection> {
-    return this.http
-      .post<ApiResult<CalendarConnection>>(`${this.calendarUrl}/google`, { code, state })
-      .pipe(map((res) => normalizeCalendar(res.value)));
-  }
-
-  disconnectCalendar(): Observable<CalendarConnection> {
-    return this.http.delete<ApiResult<CalendarConnection>>(this.calendarUrl).pipe(map((res) => normalizeCalendar(res.value)));
+  disconnectCalendar(): Observable<CalendarSettings> {
+    return this.http.delete<ApiResult<CalendarSettings>>(this.calendarUrl).pipe(map((res) => normalizeCalendar(res.value)));
   }
 }
 
@@ -97,12 +88,18 @@ function normalizeBriefing(briefing: BriefingSettings | undefined): BriefingSett
 }
 
 /** The API omits null properties entirely - restore them so `null` consistently means "not set". */
-function normalizeCalendar(calendar: CalendarConnection): CalendarConnection {
+function normalizeCalendar(calendar: CalendarSettings | null | undefined): CalendarSettings {
+  const connection = calendar?.connection ?? null;
   return {
-    connected: calendar.connected ?? false,
-    kind: calendar.kind ?? null,
-    connectedAt: calendar.connectedAt ?? null,
-    googleAvailable: calendar.googleAvailable ?? false,
+    connection: connection
+      ? {
+          provider: connection.provider,
+          account: connection.account,
+          connectedAt: connection.connectedAt,
+          needsReconnect: connection.needsReconnect ?? false,
+          needsReconnectSince: connection.needsReconnectSince ?? null,
+        }
+      : null,
   };
 }
 
