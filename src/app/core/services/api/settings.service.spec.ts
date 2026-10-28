@@ -13,6 +13,18 @@ const AI = {
   defaultGroqModel: 'default-model',
 };
 
+const CALENDAR_SETTINGS_CONNECTED = {
+  connection: {
+    provider: 'caldav',
+    account: 'sergio@fastmail.com',
+    connectedAt: '2026-10-07T09:00:00Z',
+    needsReconnect: false,
+    needsReconnectSince: null,
+  },
+};
+
+const CALENDAR_SETTINGS_EMPTY = { connection: null };
+
 describe('SettingsService', () => {
   let service: SettingsService;
   let http: HttpTestingController;
@@ -85,48 +97,32 @@ describe('SettingsService', () => {
     await promise;
   });
 
-  // ---- The calendar (calendar-integration task 8.1) ----
+  // ---- The calendar (calendar-integration) ----
 
-  it('calendar() unwraps the connection state', async () => {
-    const connection = { connected: true, kind: 'CalDav', connectedAt: '2026-10-07T09:00:00Z', googleAvailable: true };
+  it('calendar() reads the connection from the settings response', async () => {
     const promise = firstValueFrom(service.calendar());
-    http.expectOne({ method: 'GET', url: `${base}/calendar` }).flush({ value: connection });
-    expect(await promise).toEqual(connection);
+    http.expectOne({ method: 'GET', url: base }).flush({ value: { email: 'a@b.c', ai: AI, calendar: CALENDAR_SETTINGS_CONNECTED } });
+    expect(await promise).toEqual(CALENDAR_SETTINGS_CONNECTED);
   });
 
-  it('calendar() reads the properties the API omits when null as not connected', async () => {
+  it('calendar() reads a missing calendar block as not connected', async () => {
     const promise = firstValueFrom(service.calendar());
-    http.expectOne({ method: 'GET', url: `${base}/calendar` }).flush({ value: { connected: false } });
-    expect(await promise).toEqual({ connected: false, kind: null, connectedAt: null, googleAvailable: false });
+    http.expectOne({ method: 'GET', url: base }).flush({ value: { email: 'a@b.c', ai: AI } });
+    expect(await promise).toEqual(CALENDAR_SETTINGS_EMPTY);
   });
 
-  it('connectCalDavCalendar() posts the server address and the credentials', async () => {
+  it('connectCalDavCalendar() sends url and credentials in a PUT', async () => {
     const promise = firstValueFrom(service.connectCalDavCalendar('https://cal.example.test/dav/', 'sergio', 'secreto'));
-    const req = http.expectOne({ method: 'POST', url: `${base}/calendar/caldav` });
-    expect(req.request.body).toEqual({ serverUrl: 'https://cal.example.test/dav/', username: 'sergio', password: 'secreto' });
-    req.flush({ value: { connected: true, kind: 'CalDav', connectedAt: '2026-10-07T09:00:00Z', googleAvailable: false } });
-    expect((await promise).kind).toBe('CalDav');
+    const req = http.expectOne({ method: 'PUT', url: `${base}/calendar/caldav` });
+    expect(req.request.body).toEqual({ url: 'https://cal.example.test/dav/', username: 'sergio', password: 'secreto' });
+    req.flush({ value: CALENDAR_SETTINGS_CONNECTED });
+    expect(await promise).toEqual(CALENDAR_SETTINGS_CONNECTED);
   });
 
-  it('beginGoogleCalendarAuthorization() returns where to send the user', async () => {
-    const promise = firstValueFrom(service.beginGoogleCalendarAuthorization());
-    const req = http.expectOne({ method: 'POST', url: `${base}/calendar/google/authorize` });
-    req.flush({ value: { authorizationUrl: 'https://accounts.google.com/o/oauth2/auth?state=abc', state: 'abc' } });
-    expect(await promise).toEqual({ authorizationUrl: 'https://accounts.google.com/o/oauth2/auth?state=abc', state: 'abc' });
-  });
-
-  it('connectGoogleCalendar() posts what the user came back with', async () => {
-    const promise = firstValueFrom(service.connectGoogleCalendar('code-from-google', 'abc'));
-    const req = http.expectOne({ method: 'POST', url: `${base}/calendar/google` });
-    expect(req.request.body).toEqual({ code: 'code-from-google', state: 'abc' });
-    req.flush({ value: { connected: true, kind: 'Google', connectedAt: '2026-10-07T09:00:00Z', googleAvailable: true } });
-    expect((await promise).kind).toBe('Google');
-  });
-
-  it('disconnectCalendar() reports it as not connected', async () => {
+  it('disconnectCalendar() issues a DELETE and reports it as not connected', async () => {
     const promise = firstValueFrom(service.disconnectCalendar());
-    http.expectOne({ method: 'DELETE', url: `${base}/calendar` }).flush({ value: { connected: false, googleAvailable: true } });
-    expect(await promise).toEqual({ connected: false, kind: null, connectedAt: null, googleAvailable: true });
+    http.expectOne({ method: 'DELETE', url: `${base}/calendar` }).flush({ value: CALENDAR_SETTINGS_EMPTY });
+    expect(await promise).toEqual(CALENDAR_SETTINGS_EMPTY);
   });
 });
 

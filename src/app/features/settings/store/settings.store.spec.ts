@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
 import { SettingsService } from '../../../core/services/api/settings.service';
-import { AiSettings, CalendarConnection } from '../../../core/models';
+import { AiSettings, CalendarSettings } from '../../../core/models';
 import { SettingsStore } from './settings.store';
 
 const NO_KEY: AiSettings = {
@@ -18,12 +18,15 @@ const MODELS = [
 ];
 const WITH_KEY: AiSettings = { ...NO_KEY, hasGroqKey: true, groqKeyMasked: 'gsk_…a1B2' };
 
-const NO_CALENDAR: CalendarConnection = { connected: false, kind: null, connectedAt: null, googleAvailable: true };
-const CALDAV_CONNECTED: CalendarConnection = {
-  connected: true,
-  kind: 'CalDav',
-  connectedAt: '2026-10-07T09:00:00Z',
-  googleAvailable: true,
+const NO_CALENDAR: CalendarSettings = { connection: null };
+const CALDAV_CONNECTED: CalendarSettings = {
+  connection: {
+    provider: 'caldav',
+    account: 'sergio@fastmail.com',
+    connectedAt: '2026-10-07T09:00:00Z',
+    needsReconnect: false,
+    needsReconnectSince: null,
+  },
 };
 
 function apiError(status: number, message?: string) {
@@ -45,8 +48,6 @@ describe('SettingsStore', () => {
       sendBriefingNow: vi.fn(() => of(undefined)),
       calendar: vi.fn(() => of(NO_CALENDAR)),
       connectCalDavCalendar: vi.fn(() => of(CALDAV_CONNECTED)),
-      beginGoogleCalendarAuthorization: vi.fn(() => of({ authorizationUrl: 'https://accounts.google.test/auth', state: 'abc' })),
-      connectGoogleCalendar: vi.fn(() => of({ ...CALDAV_CONNECTED, kind: 'Google' })),
       disconnectCalendar: vi.fn(() => of(NO_CALENDAR)),
     };
     TestBed.configureTestingModule({ providers: [{ provide: SettingsService, useValue: service }] });
@@ -111,7 +112,7 @@ describe('SettingsStore', () => {
     await expect(store.saveGroqKey('k')).rejects.toThrow(/Demasiadas peticiones/);
   });
 
-  // ---- The calendar (calendar-integration task 8.2) ----
+  // ---- The calendar (calendar-integration) ----
 
   it('loadCalendar() exposes the connection state', async () => {
     await store.loadCalendar();
@@ -119,12 +120,12 @@ describe('SettingsStore', () => {
     expect(store.calendar()).toEqual(NO_CALENDAR);
   });
 
-  it('connectCalDavCalendar() reports it as connected, and with which form', async () => {
+  it('connectCalDavCalendar() reports it as connected', async () => {
     await store.loadCalendar();
     await store.connectCalDavCalendar('https://cal.example.test/dav/', 'sergio', 'secreto');
     expect(service.connectCalDavCalendar).toHaveBeenCalledWith('https://cal.example.test/dav/', 'sergio', 'secreto');
     expect(store.calendarConnected()).toBe(true);
-    expect(store.calendar()?.kind).toBe('CalDav');
+    expect(store.calendar()?.connection?.provider).toBe('caldav');
   });
 
   /** specs/calendar-integration "Credentials the calendar rejects": nothing changed on the server. */
@@ -138,25 +139,11 @@ describe('SettingsStore', () => {
     expect(store.calendar()).toEqual(CALDAV_CONNECTED);
   });
 
-  it('beginGoogleCalendarAuthorization() returns where to send the user and stores nothing', async () => {
-    await store.loadCalendar();
-    const authorization = await store.beginGoogleCalendarAuthorization();
-    expect(authorization.authorizationUrl).toContain('accounts.google.test');
-    expect(store.calendarConnected()).toBe(false);
-  });
-
-  it('connectGoogleCalendar() reports the Google form as connected', async () => {
-    await store.loadCalendar();
-    await store.connectGoogleCalendar('code-from-google', 'abc');
-    expect(service.connectGoogleCalendar).toHaveBeenCalledWith('code-from-google', 'abc');
-    expect(store.calendar()?.kind).toBe('Google');
-  });
-
   it('disconnectCalendar() reports it as not connected', async () => {
     service.calendar.mockReturnValue(of(CALDAV_CONNECTED));
     await store.loadCalendar();
     await store.disconnectCalendar();
     expect(store.calendarConnected()).toBe(false);
-    expect(store.calendar()?.kind).toBeNull();
+    expect(store.calendar()?.connection).toBeNull();
   });
 });
