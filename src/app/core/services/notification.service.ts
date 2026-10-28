@@ -25,4 +25,9 @@ export class NotificationService {
   warn(summary: string, detail?: string): void {
     this.messageService.add({ severity: 'warn', summary, detail, life: ERROR_LIFE_MS });
   }
+
+  /** Toast no bloqueante con botón de acción (smart-resurfacing, Decisión 2). */
+  infoWithAction(summary: string, onAction: () => void, actionLabel = 'Ver'): void {
+    this.messageService.add({ key: 'action', severity: 'info', summary, life: 8000, data: { onAction, actionLabel } });
+  }
 }

@@ -1,9 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, of, throwError } from 'rxjs';
+import { Router } from '@angular/router';
 import { NoteService } from '../../../core/services/api/note.service';
 import { NotificationService } from '../../../core/services/notification.service';
-import { Note, NoteSearchParams, PagedResult } from '../../../core/models';
+import { Note, NoteConnections, NoteSearchParams, PagedResult } from '../../../core/models';
 import { NotesStore } from './notes.store';
 
 const note = (id: string, tags: string[] = []): Note => ({
@@ -27,6 +28,12 @@ const page = (ids: string[], pageNumber: number, total: number): PagedResult<Not
   totalCount: total,
 });
 
+const connections = (notes: Note[], topic: string | null = null, status: NoteConnections['status'] = 'ready'): NoteConnections => ({
+  status,
+  notes: notes.map((n) => ({ id: n.id, title: n.title, content: n.content, type: n.type, similarity: 0.8 })),
+  topic,
+});
+
 describe('NotesStore', () => {
   type Mock = ReturnType<typeof vi.fn>;
   let service: {
@@ -38,7 +45,10 @@ describe('NotesStore', () => {
     delete: Mock;
     create: Mock;
     setStatus: Mock;
+    getConnections: Mock;
   };
+  let notifications: { success: Mock; error: Mock; infoWithAction: Mock };
+  let router: { navigate: Mock };
   let store: NotesStore;
 
   beforeEach(() => {
@@ -50,13 +60,17 @@ describe('NotesStore', () => {
       update: vi.fn(() => of(undefined)),
       addTag: vi.fn(() => of(undefined)),
       delete: vi.fn(() => of(undefined)),
-      create: vi.fn(() => of('id')),
+      create: vi.fn(() => of('nueva-id')),
       setStatus: vi.fn(() => of(undefined)),
+      getConnections: vi.fn(() => of(connections([], null))),
     };
+    notifications = { success: vi.fn(), error: vi.fn(), infoWithAction: vi.fn() };
+    router = { navigate: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
         { provide: NoteService, useValue: service },
-        { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn() } },
+        { provide: NotificationService, useValue: notifications },
+        { provide: Router, useValue: router },
       ],
     });
     store = TestBed.inject(NotesStore);
@@ -213,5 +227,106 @@ describe('NotesStore', () => {
     expect(service.addTag).toHaveBeenCalledTimes(2);
     expect(service.getById).toHaveBeenCalledWith('a');
     expect(service.listTags).toHaveBeenCalled();
+  });
+});
+
+describe('NotesStore — aviso de conexiones al capturar', () => {
+  type Mock = ReturnType<typeof vi.fn>;
+  let service: {
+    search: Mock; getById: Mock; listTags: Mock;
+    create: Mock; getConnections: Mock;
+    update: Mock; addTag: Mock;
+  };
+  let notif: { success: Mock; error: Mock; infoWithAction: Mock };
+  let router: { navigate: Mock };
+  let store: NotesStore;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    service = {
+      search: vi.fn(() => of(page(['a'], 1, 1))),
+      getById: vi.fn((id: string) => of(note(id))),
+      listTags: vi.fn(() => of([])),
+      create: vi.fn(() => of('nueva-id')),
+      getConnections: vi.fn(() => of(connections([], null))),
+      update: vi.fn(() => of(undefined)),
+      addTag: vi.fn(() => of(undefined)),
+    };
+    notif = { success: vi.fn(), error: vi.fn(), infoWithAction: vi.fn() };
+    router = { navigate: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: NoteService, useValue: service },
+        { provide: NotificationService, useValue: notif },
+        { provide: Router, useValue: router },
+      ],
+    });
+    store = TestBed.inject(NotesStore);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('«Captura con conexiones»: muestra toast con tema si hay conexiones', async () => {
+    service.getConnections.mockReturnValue(of(connections([note('x')], 'k8s')));
+    await store.create({ type: 'text', title: null, content: 'nueva', tags: [] });
+    await vi.runAllTimersAsync();
+
+    expect(notif.infoWithAction).toHaveBeenCalledWith(
+      'Se relaciona con 1 nota tuya sobre #k8s',
+      expect.any(Function),
+    );
+  });
+
+  it('«Captura sin tema común»: muestra toast sin #tema si topic es null', async () => {
+    service.getConnections.mockReturnValue(of(connections([note('x'), note('y')], null)));
+    await store.create({ type: 'text', title: null, content: 'nueva', tags: [] });
+    await vi.runAllTimersAsync();
+
+    expect(notif.infoWithAction).toHaveBeenCalledWith(
+      'Se relaciona con 2 notas tuyas',
+      expect.any(Function),
+    );
+  });
+
+  it('«Captura sin conexiones»: no muestra toast si notes está vacío', async () => {
+    await store.create({ type: 'text', title: null, content: 'nueva', tags: [] });
+    await vi.runAllTimersAsync();
+
+    expect(notif.infoWithAction).not.toHaveBeenCalled();
+  });
+
+  it('«El análisis tarda demasiado»: no muestra toast si agota los intentos en pending', async () => {
+    service.getConnections.mockReturnValue(of(connections([], null, 'pending')));
+    await store.create({ type: 'text', title: null, content: 'nueva', tags: [] });
+    await vi.runAllTimersAsync();
+
+    expect(notif.infoWithAction).not.toHaveBeenCalled();
+  });
+
+  it('«La búsqueda falla»: no muestra toast de error si getConnections falla', async () => {
+    service.getConnections.mockReturnValue(throwError(() => new Error('red')));
+    await store.create({ type: 'text', title: null, content: 'nueva', tags: [] });
+    await vi.runAllTimersAsync();
+
+    expect(notif.infoWithAction).not.toHaveBeenCalled();
+    expect(notif.error).not.toHaveBeenCalledWith(expect.stringContaining('conexion'), expect.anything());
+  });
+
+  it('«Abrir desde el aviso»: la acción del toast navega a la nota creada', async () => {
+    service.getConnections.mockReturnValue(of(connections([note('x')], null)));
+    await store.create({ type: 'text', title: null, content: 'nueva', tags: [] });
+    await vi.runAllTimersAsync();
+
+    const [, onAction] = notif.infoWithAction.mock.calls[0] as [string, () => void];
+    onAction();
+    expect(router.navigate).toHaveBeenCalledWith(['/app/notes', 'nueva-id']);
+  });
+
+  it('«Editar no avisa»: updateWithTags no lanza sondeo de conexiones', async () => {
+    await store.search();
+    await store.updateWithTags('a', { title: 'T', content: 'c' }, []);
+    await vi.runAllTimersAsync();
+
+    expect(service.getConnections).not.toHaveBeenCalled();
+    expect(notif.infoWithAction).not.toHaveBeenCalled();
   });
 });

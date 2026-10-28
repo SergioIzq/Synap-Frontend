@@ -86,4 +86,31 @@ describe('NoteService', () => {
     req.flush({ value: 'nueva-id' });
     expect(await promise).toBe('nueva-id');
   });
+
+  // smart-resurfacing 2.1
+
+  it('getConnections() calls GET /{id}/connections and unwraps the value', async () => {
+    const promise = firstValueFrom(service.getConnections('n1'));
+    const req = http.expectOne(`${environment.apiUrl}/notes/n1/connections`);
+    expect(req.request.method).toBe('GET');
+    const connections = { status: 'ready', notes: [{ id: 'r1', title: 'Otra', content: 'c', type: 'text', similarity: 0.8 }], topic: 'infra' };
+    req.flush({ value: connections });
+    expect(await promise).toEqual(connections);
+  });
+
+  it('getConnections() returns pending status when embedding is not ready', async () => {
+    const promise = firstValueFrom(service.getConnections('n2'));
+    http.expectOne(`${environment.apiUrl}/notes/n2/connections`).flush({ value: { status: 'pending', notes: [], topic: null } });
+    const result = await promise;
+    expect(result.status).toBe('pending');
+    expect(result.notes).toEqual([]);
+  });
+
+  it('markViewed() sends POST /{id}/view with no body', async () => {
+    const promise = firstValueFrom(service.markViewed('n1'));
+    const req = http.expectOne(`${environment.apiUrl}/notes/n1/view`);
+    expect(req.request.method).toBe('POST');
+    req.flush(null);
+    await promise;
+  });
 });

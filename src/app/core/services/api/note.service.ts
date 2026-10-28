@@ -6,6 +6,7 @@ import {
   ApiResult,
   CreateNoteRequest,
   Note,
+  NoteConnections,
   NoteSearchParams,
   NoteStatus,
   PagedResult,
@@ -73,5 +74,15 @@ export class NoteService {
 
   getRelated(id: string): Observable<RelatedNote[]> {
     return this.http.get<ApiResult<RelatedNote[]>>(`${this.apiUrl}/${id}/related`).pipe(map((res) => res.value));
+  }
+
+  /** smart-resurfacing: conexiones semánticas de la nota (puede devolver status=pending). */
+  getConnections(id: string): Observable<NoteConnections> {
+    return this.http.get<ApiResult<NoteConnections>>(`${this.apiUrl}/${id}/connections`).pipe(map((res) => res.value));
+  }
+
+  /** smart-resurfacing: registrar que la nota fue abierta. No espera respuesta ni propaga error. */
+  markViewed(id: string): Observable<void> {
+    return this.http.post<void>(`${this.apiUrl}/${id}/view`, {}).pipe(map(() => undefined));
   }
 }
