@@ -203,6 +203,7 @@ export class AppShellComponent {
     { path: '/app/notes', label: 'Notas', icon: 'pi pi-book' },
     { path: '/app/assistant', label: 'Asistente', icon: 'pi pi-comments' },
     { path: '/app/reminders', label: 'Recordatorios', icon: 'pi pi-bell' },
+    { path: '/app/calendar', label: 'Calendario', icon: 'pi pi-calendar' },
   ];
   protected readonly settingsNav: NavItem = { path: '/app/settings', label: 'Configuración', icon: 'pi pi-cog' };
   protected readonly allNav: NavItem[] = [...this.mainNav, this.settingsNav];

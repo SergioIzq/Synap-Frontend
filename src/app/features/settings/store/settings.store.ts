@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, firstValueFrom } from 'rxjs';
 import { SettingsService } from '../../../core/services/api/settings.service';
-import { AiSettings, BriefingSettings, CalendarConnection, GoogleCalendarAuthorization, LlmModel, UserSettings } from '../../../core/models';
+import { AiSettings, BriefingSettings, CalendarSettings, LlmModel, UserSettings } from '../../../core/models';
 import { apiErrorMessage } from '../../../core/utils/http-errors';
 
 /**
@@ -22,7 +22,7 @@ export class SettingsStore {
   private readonly _modelsLoading = signal(false);
   private readonly _error = signal<string | null>(null);
   private readonly _modelsError = signal<string | null>(null);
-  private readonly _calendar = signal<CalendarConnection | null>(null);
+  private readonly _calendar = signal<CalendarSettings | null>(null);
 
   readonly settings = this._settings.asReadonly();
   readonly models = this._models.asReadonly();
@@ -40,7 +40,7 @@ export class SettingsStore {
   readonly calendar = this._calendar.asReadonly();
 
   readonly loaded = computed(() => this._settings() !== null);
-  readonly calendarConnected = computed(() => this._calendar()?.connected ?? false);
+  readonly calendarConnected = computed(() => this._calendar()?.connection != null);
   readonly hasGroqKey = computed(() => this._settings()?.ai.hasGroqKey ?? false);
   readonly briefing = computed(() => this._settings()?.briefing ?? null);
 
@@ -128,35 +128,17 @@ export class SettingsStore {
    * not read the calendar - leaving the previous connection state exactly as it was, because that
    * is what the server did too (specs/calendar-integration "Credentials the calendar rejects").
    */
-  async connectCalDavCalendar(serverUrl: string, username: string, password: string): Promise<void> {
+  async connectCalDavCalendar(url: string, username: string, password: string): Promise<void> {
     await this.mutateCalendar(
-      () => this.settingsService.connectCalDavCalendar(serverUrl, username, password),
+      () => this.settingsService.connectCalDavCalendar(url, username, password),
       'No se pudo conectar el calendario.');
-  }
-
-  /** Where to send the user to grant access; nothing is stored until they come back. */
-  async beginGoogleCalendarAuthorization(): Promise<GoogleCalendarAuthorization> {
-    this._saving.set(true);
-    try {
-      return await firstValueFrom(this.settingsService.beginGoogleCalendarAuthorization());
-    } catch (err) {
-      throw new Error(extractErrorMessage(err, 'No se pudo iniciar la conexión con Google Calendar.'));
-    } finally {
-      this._saving.set(false);
-    }
-  }
-
-  async connectGoogleCalendar(code: string, state: string): Promise<void> {
-    await this.mutateCalendar(
-      () => this.settingsService.connectGoogleCalendar(code, state),
-      'No se pudo conectar el calendario de Google.');
   }
 
   async disconnectCalendar(): Promise<void> {
     await this.mutateCalendar(() => this.settingsService.disconnectCalendar(), 'No se pudo desconectar el calendario.');
   }
 
-  private async mutateCalendar(request: () => Observable<CalendarConnection>, fallback: string): Promise<void> {
+  private async mutateCalendar(request: () => Observable<CalendarSettings>, fallback: string): Promise<void> {
     this._saving.set(true);
     try {
       this._calendar.set(await firstValueFrom(request()));
