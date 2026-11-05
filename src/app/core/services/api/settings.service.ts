@@ -98,6 +98,7 @@ function normalizeCalendar(calendar: CalendarSettings | null | undefined): Calen
           connectedAt: connection.connectedAt,
           needsReconnect: connection.needsReconnect ?? false,
           needsReconnectSince: connection.needsReconnectSince ?? null,
+          lastSyncedAt: connection.lastSyncedAt ?? null,
         }
       : null,
   };

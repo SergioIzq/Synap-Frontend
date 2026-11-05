@@ -27,6 +27,11 @@ export const routes: Routes = [
           import('./features/reminders/pages/reminders.page').then((m) => m.RemindersPage),
       },
       {
+        path: 'calendar',
+        loadComponent: () =>
+          import('./features/calendar/pages/calendar.page').then((m) => m.CalendarPage),
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./features/settings/pages/settings.page').then((m) => m.SettingsPage),

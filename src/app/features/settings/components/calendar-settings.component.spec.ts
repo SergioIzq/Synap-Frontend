@@ -15,6 +15,7 @@ const CALDAV = {
     connectedAt: '2026-10-07T09:00:00Z',
     needsReconnect: false,
     needsReconnectSince: null,
+    lastSyncedAt: null,
   },
 };
 

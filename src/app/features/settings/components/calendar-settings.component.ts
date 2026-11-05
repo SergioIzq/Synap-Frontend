@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ConfirmationService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
@@ -7,9 +7,12 @@ import { MessageModule } from 'primeng/message';
 import { PasswordModule } from 'primeng/password';
 import { SkeletonModule } from 'primeng/skeleton';
 import { TagModule } from 'primeng/tag';
+import { SelectModule } from 'primeng/select';
 import { formatDateTime } from '../../../core/utils/dates';
 import { NotificationService } from '../../../core/services/notification.service';
 import { SettingsStore } from '../store/settings.store';
+import { CalendarStore } from '../../calendar/store/calendar.store';
+import { CalendarDto } from '../../calendar/services/calendar.models';
 
 /**
  * Settings > Calendario: connecting the CalDAV calendar Synap reads (specs/calendar-integration
@@ -21,21 +24,33 @@ import { SettingsStore } from '../store/settings.store';
   selector: 'app-calendar-settings',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [ReactiveFormsModule, ButtonModule, InputTextModule, MessageModule, PasswordModule, SkeletonModule, TagModule],
+  imports: [FormsModule, ReactiveFormsModule, ButtonModule, InputTextModule, MessageModule, PasswordModule, SkeletonModule, TagModule, SelectModule],
   styles: [`
     .status { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
-
     .intro { margin: 0 0 0.75rem; font-size: 0.875rem; color: var(--p-text-muted-color); }
-
     .since { font-size: 0.8125rem; color: var(--p-text-muted-color); }
-
     .field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.6rem; }
-
     .field label { font-size: 0.8125rem; color: var(--p-text-muted-color); }
-
     .buttons { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
-
     .error { margin-top: 0.75rem; }
+
+    .cal-list { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.75rem 0; }
+
+    .cal-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 0.6rem;
+      border: 1px solid var(--p-border-color, #e5e7eb);
+      border-radius: 6px;
+      flex-wrap: wrap;
+    }
+
+    .cal-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .cal-name { font-size: 0.9rem; flex: 1; min-width: 80px; }
+    .cal-actions { display: flex; align-items: center; gap: 0.4rem; margin-left: auto; }
+
+    .sync-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: var(--p-text-muted-color); margin: 0.5rem 0; flex-wrap: wrap; }
   `],
   template: `
     @if (loading()) {
@@ -59,6 +74,52 @@ import { SettingsStore } from '../store/settings.store';
             <span>La conexión necesita ser renovada. Vuelve a introducir tus credenciales.</span>
           </p-message>
         }
+
+        <!-- Lista de calendarios -->
+        @if (calStore.calendars().length) {
+          <div class="cal-list">
+            @for (cal of calStore.calendars(); track cal.id) {
+              <div class="cal-row">
+                <span class="cal-dot" [style.background]="cal.color"></span>
+                <span class="cal-name">{{ cal.name }}</span>
+                <p-select
+                  [options]="scopeOptions"
+                  [ngModel]="cal.scope"
+                  (ngModelChange)="patchScope(cal, $event)"
+                  optionLabel="label"
+                  optionValue="value"
+                  size="small"
+                  styleClass="scope-sel"
+                  appendTo="body"
+                />
+                <p-button
+                  [icon]="cal.enabled ? 'pi pi-eye' : 'pi pi-eye-slash'"
+                  [severity]="cal.enabled ? 'secondary' : 'contrast'"
+                  size="small"
+                  [text]="true"
+                  [title]="cal.enabled ? 'Desactivar' : 'Activar'"
+                  (onClick)="toggleEnabled(cal)"
+                />
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Sincronización -->
+        <div class="sync-row">
+          @if (store.calendar()?.connection?.lastSyncedAt; as t) {
+            <span>Sincronizado {{ since(t) }}</span>
+          }
+          <p-button
+            label="Sincronizar ahora"
+            icon="pi pi-refresh"
+            size="small"
+            [text]="true"
+            [disabled]="calStore.syncing()"
+            (onClick)="syncNow()"
+          />
+        </div>
+
         <div class="buttons">
           <p-button
             label="Desconectar"
@@ -123,12 +184,18 @@ import { SettingsStore } from '../store/settings.store';
 })
 export class CalendarSettingsComponent implements OnInit {
   protected readonly store = inject(SettingsStore);
+  protected readonly calStore = inject(CalendarStore);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly notifications = inject(NotificationService);
   private readonly formBuilder = inject(FormBuilder);
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
+
+  protected readonly scopeOptions = [
+    { label: 'Personal', value: 'personal' },
+    { label: 'Trabajo', value: 'work' },
+  ];
 
   protected readonly form = this.formBuilder.nonNullable.group({
     serverUrl: ['', [Validators.required]],
@@ -138,7 +205,7 @@ export class CalendarSettingsComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     try {
-      await this.store.loadCalendar();
+      await Promise.all([this.store.loadCalendar(), this.calStore.loadCalendars()]);
     } catch {
       this.error.set('No se pudo consultar el estado de tu calendario.');
     } finally {
@@ -177,9 +244,38 @@ export class CalendarSettingsComponent implements OnInit {
     });
   }
 
+  protected async patchScope(cal: CalendarDto, scope: 'personal' | 'work'): Promise<void> {
+    await this.run(() => this.calStore.patchCalendar(cal.id, { scope }));
+  }
+
+  protected toggleEnabled(cal: CalendarDto): void {
+    if (cal.enabled) {
+      this.confirmationService.confirm({
+        header: 'Desactivar calendario',
+        message: `Desactivar "${cal.name}" borrará su copia local. ¿Continuar?`,
+        icon: 'pi pi-exclamation-triangle',
+        acceptLabel: 'Desactivar',
+        rejectLabel: 'Cancelar',
+        acceptButtonProps: { severity: 'danger' },
+        rejectButtonProps: { severity: 'secondary', text: true },
+        accept: () => void this.run(() => this.calStore.patchCalendar(cal.id, { enabled: false })),
+      });
+    } else {
+      void this.run(() => this.calStore.patchCalendar(cal.id, { enabled: true }));
+    }
+  }
+
+  protected async syncNow(): Promise<void> {
+    await this.run(async () => {
+      await this.calStore.requestSync();
+      await this.store.loadCalendar();
+    });
+  }
+
   private async disconnect(): Promise<void> {
     await this.run(async () => {
       await this.store.disconnectCalendar();
+      this.calStore.reset();
       this.notifications.success('Calendario desconectado');
     });
   }

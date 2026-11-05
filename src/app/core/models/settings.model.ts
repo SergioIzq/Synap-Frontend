@@ -38,6 +38,7 @@ export interface CalendarConnectionStatus {
   connectedAt: string;
   needsReconnect: boolean;
   needsReconnectSince: string | null;
+  lastSyncedAt: string | null;
 }
 
 /** The "calendar" block of GET /api/settings. `connection` is null when nothing is connected. */
